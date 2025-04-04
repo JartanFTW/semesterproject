@@ -1,59 +1,74 @@
-<!-- templates/stocks.html -->
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="stocks-container">
-    <h2>Stock Ticker Search</h2>
-    <div class="search-form">
-        <input type="text" id="ticker-input" placeholder="Enter stock ticker symbol (e.g., AAPL, MSFT)" required>
-        <button id="search-btn" class="btn">Search</button>
+<div class="stock-detail-container">
+    <div class="stock-header">
+        <h2>{{ ticker }}</h2>
+        <a href="{{ url_for('stocks') }}" class="btn back-btn">Back to Search</a>
     </div>
     
-    <div class="recent-searches">
-        <h3>Recent Searches</h3>
-        <div id="recent-list" class="recent-list">
-            <!-- JavaScript will populate this -->
+    <div class="data-section">
+        <h3>Market Sentiment Analysis</h3>
+        
+        <div class="sentiment-data">
+            <div class="data-card">
+                <h4>Overall Sentiment</h4>
+                <div class="sentiment-meter">
+                    <div class="meter-bar">
+                        <div class="meter-fill 
+                            {% if sentiment.score > 0.2 %}very-positive
+                            {% elif sentiment.score > 0 %}positive
+                            {% elif sentiment.score > -0.2 %}negative
+                            {% else %}very-negative{% endif %}"
+                            style="width: {{ (sentiment.score + 1) * 50 }}%;">
+                        </div>
+                    </div>
+                    <div class="meter-labels">
+                        <span>Negative</span>
+                        <span>Neutral</span>
+                        <span>Positive</span>
+                    </div>
+                </div>
+                <div class="sentiment-value">Score: {{ sentiment.score }}</div>
+                <div class="sentiment-dominant">Dominant: {{ sentiment.dominant|capitalize }}</div>
+            </div>
+            
+            <div class="data-card">
+                <h4>Sentiment Breakdown</h4>
+                <div class="sentiment-chart">
+                    <div class="chart-bar positive" style="height: {{ sentiment.positive * 100 }}%;" title="Positive: {{ sentiment.positive }}"></div>
+                    <div class="chart-bar neutral" style="height: {{ sentiment.neutral * 100 }}%;" title="Neutral: {{ sentiment.neutral }}"></div>
+                    <div class="chart-bar negative" style="height: {{ sentiment.negative * 100 }}%;" title="Negative: {{ sentiment.negative }}"></div>
+                </div>
+                <div class="chart-labels">
+                    <span>Positive</span>
+                    <span>Neutral</span>
+                    <span>Negative</span>
+                </div>
+            </div>
+            
+            <div class="data-card">
+                <h4>Emotional Intensity</h4>
+                <div class="emotional-meter">
+                    <div class="meter-bar">
+                        <div class="meter-fill" style="width: {{ sentiment.emotionality * 100 }}%;"></div>
+                    </div>
+                </div>
+                <div class="sentiment-value">Intensity: {{ sentiment.emotionality }}</div>
+            </div>
+        </div>
+        
+        <div class="messages-section">
+            <h4>Messages Analyzed</h4>
+            <div class="message-list">
+                {% for message in sentiment.messages %}
+                    <div class="message-item">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% if sentiment.source %}
+                <div class="data-source">Source: {{ sentiment.source }}</div>
+            {% endif %}
         </div>
     </div>
-    
-    <script>
-        document.getElementById('search-btn').addEventListener('click', function() {
-            const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
-            if (ticker) {
-                // Store in recent searches
-                let recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
-                if (!recent.includes(ticker)) {
-                    recent.unshift(ticker);
-                    if (recent.length > 5) recent.pop(); // Keep only 5 most recent
-                    localStorage.setItem('recentStocks', JSON.stringify(recent));
-                }
-                // Navigate to stock detail page
-                window.location.href = '/stocks/' + ticker;
-            }
-        });
-        
-        // Load recent searches
-        function loadRecentSearches() {
-            const recentList = document.getElementById('recent-list');
-            const recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
-            
-            recentList.innerHTML = '';
-            if (recent.length === 0) {
-                recentList.innerHTML = '<p>No recent searches</p>';
-                return;
-            }
-            
-            recent.forEach(ticker => {
-                const link = document.createElement('a');
-                link.href = '/stocks/' + ticker;
-                link.textContent = ticker;
-                link.className = 'recent-item';
-                recentList.appendChild(link);
-            });
-        }
-        
-        // Load recent searches on page load
-        document.addEventListener('DOMContentLoaded', loadRecentSearches);
-    </script>
 </div>
 {% endblock %}
