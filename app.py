@@ -12,9 +12,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = 'development_key_123'
 
-# StockGeist API configuration
+# API configuration
 STOCKGEIST_API_KEY = 'EB577JAy0ombl1t2AvXjIow1GRrAJTIQ'
 STOCKGEIST_BASE_URL = 'https://api.stockgeist.ai'
+ALPHAVANTAGE_API_KEY = 'Q8WYAIKELRRKGL6O'
+ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query'
 
 # Database functions remain the same...
 def init_db():
@@ -51,7 +53,51 @@ def register_user(username, password):
 # Initialize database on startup
 init_db()
 
-# New function to get stock sentiment data using StockGeist API
+# Function to get company overview from AlphaVantage
+def get_company_overview(ticker):
+    """
+    Fetch company overview data from AlphaVantage API
+    """
+    params = {
+        'function': 'OVERVIEW',
+        'symbol': ticker,
+        'apikey': ALPHAVANTAGE_API_KEY
+    }
+    
+    try:
+        logger.info(f"Calling AlphaVantage API for ticker {ticker}")
+        response = requests.get(ALPHAVANTAGE_BASE_URL, params=params)
+        logger.info(f"Response status code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Check if we got valid data (AlphaVantage returns an empty dict or error message for invalid tickers)
+            if 'Symbol' in data and data['Symbol']:
+                return {
+                    'success': True,
+                    'company_data': data
+                }
+            else:
+                logger.error(f"No valid data returned for ticker {ticker}: {data}")
+                return {
+                    'success': False,
+                    'error': f"No data found for ticker {ticker}"
+                }
+        else:
+            logger.error(f"API request failed with status {response.status_code}")
+            return {
+                'success': False,
+                'error': f"API request failed: {response.status_code}"
+            }
+    except Exception as e:
+        logger.error(f"Exception in API request: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+# Function to get stock sentiment data using StockGeist API
 def get_stock_sentiment(ticker):
     """
     Generate sample text about the stock and analyze its sentiment using the StockGeist API
@@ -78,8 +124,6 @@ def get_stock_sentiment(ticker):
         logger.info(f"Calling StockGeist API for ticker {ticker}")
         response = requests.post(endpoint, headers=headers, json=messages)
         logger.info(f"Response status code: {response.status_code}")
-        logger.info(f"Response headers: {response.headers}")
-        logger.info(f"Response text: {response.text[:500]}...")
         
         if response.status_code == 200:
             data = response.json()
@@ -248,17 +292,24 @@ def stocks():
 @app.route('/stocks/<ticker>')
 @login_required
 def stock_detail(ticker):
-    # Try to get sentiment data from the API
-    sentiment_data = get_stock_sentiment(ticker.upper())
+    ticker = ticker.upper()
     
-    # If the API call fails, fall back to simulated data
+    # Get company overview data
+    company_data_response = get_company_overview(ticker)
+    
+    # Try to get sentiment data from the API
+    sentiment_data = get_stock_sentiment(ticker)
+    
+    # If the sentiment API call fails, fall back to simulated data
     if not sentiment_data['success']:
-        logger.warning(f"Using simulated data for {ticker} due to API failure: {sentiment_data['error']}")
-        sentiment_data = get_simulated_sentiment(ticker.upper())
+        logger.warning(f"Using simulated sentiment data for {ticker} due to API failure: {sentiment_data['error']}")
+        sentiment_data = get_simulated_sentiment(ticker)
     
     return render_template(
         'stock_detail.html', 
-        ticker=ticker.upper(),
+        ticker=ticker,
+        company_data=company_data_response.get('company_data', None) if company_data_response['success'] else None,
+        company_error=None if company_data_response['success'] else company_data_response['error'],
         sentiment=sentiment_data['sentiment']
     )
 

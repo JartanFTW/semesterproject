@@ -7,9 +7,86 @@
         <a href="{{ url_for('stocks') }}" class="btn back-btn">Back to Search</a>
     </div>
     
+    <!-- Company Overview Section -->
     <div class="data-section">
-        <h3>Market Sentiment Analysis</h3>
+        <h3>Company Overview</h3>
         
+        {% if company_data %}
+            <div class="company-overview">
+                <div class="company-header">
+                    <div class="company-name">{{ company_data.Name }}</div>
+                    <div class="company-exchange">{{ company_data.Exchange }}</div>
+                    <div class="company-industry">{{ company_data.Industry }}</div>
+                </div>
+                
+                <div class="company-description">
+                    <h4>Description</h4>
+                    <p>{{ company_data.Description }}</p>
+                </div>
+                
+                <div class="company-metrics">
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <div class="metric-title">Market Cap</div>
+                            <div class="metric-value">${{ "{:,.2f}".format(company_data.MarketCapitalization|float) }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">PE Ratio</div>
+                            <div class="metric-value">{{ company_data.PERatio }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">EPS</div>
+                            <div class="metric-value">${{ company_data.EPS }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <div class="metric-title">52-Week High</div>
+                            <div class="metric-value">${{ company_data['52WeekHigh'] }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">52-Week Low</div>
+                            <div class="metric-value">${{ company_data['52WeekLow'] }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">Dividend Yield</div>
+                            <div class="metric-value">{{ company_data.DividendYield }}%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <div class="metric-title">Profit Margin</div>
+                            <div class="metric-value">{{ company_data.ProfitMargin }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">Beta</div>
+                            <div class="metric-value">{{ company_data.Beta }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-title">Analyst Target</div>
+                            <div class="metric-value">${{ company_data.AnalystTargetPrice }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="error-message">
+                {% if company_error %}
+                    <p>Error retrieving company data: {{ company_error }}</p>
+                {% else %}
+                    <p>No company data available for {{ ticker }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Sentiment Analysis Section -->
+<div class="data-section">
+    <h3>Market Sentiment Analysis</h3>
+    
+    <div class="sentiment-container">
         <div class="sentiment-data">
             <div class="data-card">
                 <h4>Overall Sentiment</h4>
