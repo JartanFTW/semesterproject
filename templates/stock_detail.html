@@ -1,0 +1,59 @@
+<!-- templates/stocks.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="stocks-container">
+    <h2>Stock Ticker Search</h2>
+    <div class="search-form">
+        <input type="text" id="ticker-input" placeholder="Enter stock ticker symbol (e.g., AAPL, MSFT)" required>
+        <button id="search-btn" class="btn">Search</button>
+    </div>
+    
+    <div class="recent-searches">
+        <h3>Recent Searches</h3>
+        <div id="recent-list" class="recent-list">
+            <!-- JavaScript will populate this -->
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('search-btn').addEventListener('click', function() {
+            const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+            if (ticker) {
+                // Store in recent searches
+                let recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
+                if (!recent.includes(ticker)) {
+                    recent.unshift(ticker);
+                    if (recent.length > 5) recent.pop(); // Keep only 5 most recent
+                    localStorage.setItem('recentStocks', JSON.stringify(recent));
+                }
+                // Navigate to stock detail page
+                window.location.href = '/stocks/' + ticker;
+            }
+        });
+        
+        // Load recent searches
+        function loadRecentSearches() {
+            const recentList = document.getElementById('recent-list');
+            const recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
+            
+            recentList.innerHTML = '';
+            if (recent.length === 0) {
+                recentList.innerHTML = '<p>No recent searches</p>';
+                return;
+            }
+            
+            recent.forEach(ticker => {
+                const link = document.createElement('a');
+                link.href = '/stocks/' + ticker;
+                link.textContent = ticker;
+                link.className = 'recent-item';
+                recentList.appendChild(link);
+            });
+        }
+        
+        // Load recent searches on page load
+        document.addEventListener('DOMContentLoaded', loadRecentSearches);
+    </script>
+</div>
+{% endblock %}

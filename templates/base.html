@@ -1,0 +1,32 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Ticker App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav>
+        <div class="nav-title">Stock Ticker App</div>
+        <div class="nav-links">
+            {% if session.logged_in %}
+                <a href="{{ url_for('stocks') }}">Stocks</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Login</a>
+                <a href="{{ url_for('register') }}">Register</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% for message in get_flashed_messages() %}
+            <div class="alert">{{ message }}</div>
+        {% endfor %}
+        
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
