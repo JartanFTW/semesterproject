@@ -103,3 +103,7 @@ The application follows a **layered architecture** with clear separation of conc
 - **Error Handling**: Basic implementation without comprehensive fallback mechanisms
 
 This application is intended as a demonstration and learning tool rather than a production-ready system.
+
+## AI Generation
+
+All code from this project has been generated using highly customized Claude AI prompting. Credit to Anthropic.
