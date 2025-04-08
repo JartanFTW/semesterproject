@@ -1,32 +1,305 @@
 <!-- templates/base.html -->
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Ticker App</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <nav>
-        <div class="nav-title">Stock Ticker App</div>
-        <div class="nav-links">
-            {% if session.logged_in %}
-                <a href="{{ url_for('stocks') }}">Stocks</a>
-                <a href="{{ url_for('logout') }}">Logout</a>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StockSense App</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- Custom CSS -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <nav>
+          <div class="nav-brand">
+            <a href="{{ url_for('index') }}">
+              <i class="fas fa-chart-line"></i>
+              <span class="nav-title">StockSense</span>
+            </a>
+          </div>
+          <div class="nav-links">
+            {% if 'user_id' in session %}
+            <a href="{{ url_for('stocks') }}" class="nav-link"
+              ><i class="fas fa-search"></i> Search</a
+            >
+            <a href="{{ url_for('logout') }}" class="nav-link"
+              ><i class="fas fa-sign-out-alt"></i> Logout</a
+            >
             {% else %}
-                <a href="{{ url_for('login') }}">Login</a>
-                <a href="{{ url_for('register') }}">Register</a>
+            <a href="{{ url_for('login') }}" class="nav-link"
+              ><i class="fas fa-sign-in-alt"></i> Login</a
+            >
+            <a href="{{ url_for('register') }}" class="nav-link"
+              ><i class="fas fa-user-plus"></i> Register</a
+            >
             {% endif %}
-        </div>
-    </nav>
+            <button
+              id="theme-toggle"
+              class="theme-toggle"
+              aria-label="Toggle dark mode"
+            >
+              <i class="fas fa-moon"></i>
+            </button>
+          </div>
+          <button class="mobile-menu-toggle" aria-label="Toggle mobile menu">
+            <i class="fas fa-bars"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
 
-    <div class="container">
-        {% for message in get_flashed_messages() %}
-            <div class="alert">{{ message }}</div>
-        {% endfor %}
-        
-        {% block content %}{% endblock %}
+    <main class="main-content">
+      <div class="container">
+        {% for message in get_flashed_messages(with_categories=true) %}
+        <div class="alert {% if message[0] %}alert-{{ message[0] }}{% endif %}">
+          {% if message[0] == 'success' %}
+          <i class="fas fa-check-circle"></i>
+          {% elif message[0] == 'info' %}
+          <i class="fas fa-info-circle"></i>
+          {% else %}
+          <i class="fas fa-exclamation-circle"></i>
+          {% endif %} {{ message[1] }}
+        </div>
+        {% endfor %} {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>© 2025 StockSense - Financial data for educational purposes only</p>
+      </div>
+    </footer>
+
+    <!-- Back to top button -->
+    <button id="back-to-top" class="back-to-top" aria-label="Back to top">
+      <i class="fas fa-chevron-up"></i>
+    </button>
+
+    <!-- AI Chatbot -->
+    <div class="chatbot-container" id="chatbot-container">
+      <div class="chatbot-header">
+        <h4><i class="fas fa-robot"></i> StockAI Assistant</h4>
+        <button id="close-chatbot" class="close-chatbot">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="chatbot-messages" id="chatbot-messages">
+        <div class="message bot-message">
+          Hello! I'm your StockAI assistant. Ask me about any stock or financial
+          term.
+        </div>
+      </div>
+      <div class="chatbot-input">
+        <input
+          type="text"
+          id="chatbot-input-field"
+          placeholder="Ask about stocks, finance, or market trends..."
+          autocomplete="off"
+        />
+        <button id="send-message">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
     </div>
-</body>
+
+    <!-- Chatbot toggle button -->
+    <button
+      id="chatbot-toggle"
+      class="chatbot-toggle"
+      aria-label="Open AI assistant"
+    >
+      <i class="fas fa-robot"></i>
+    </button>
+
+    <script>
+      // Mobile menu toggle
+      document
+        .querySelector(".mobile-menu-toggle")
+        .addEventListener("click", function () {
+          document.querySelector(".nav-links").classList.toggle("active");
+        });
+
+      // Auto-hide flash messages after 2 seconds
+      document.addEventListener("DOMContentLoaded", function () {
+        const flashMessages = document.querySelectorAll(".alert");
+        if (flashMessages.length > 0) {
+          // Set a timeout to fade out and remove the messages
+          setTimeout(function () {
+            flashMessages.forEach(function (message) {
+              // Add the CSS class for fadeout animation
+              message.classList.add("fadeOut");
+
+              // Remove from DOM after animation completes
+              setTimeout(function () {
+                message.remove();
+              }, 500);
+            });
+          }, 2000); // 2000ms = 2 seconds
+        }
+      });
+
+      // Dark mode toggle
+      const themeToggle = document.getElementById("theme-toggle");
+      const htmlElement = document.documentElement;
+      const isDarkMode = localStorage.getItem("darkMode") === "true";
+
+      // Set initial theme based on local storage
+      if (isDarkMode) {
+        htmlElement.setAttribute("data-theme", "dark");
+        themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+      }
+
+      themeToggle.addEventListener("click", function () {
+        const currentTheme = htmlElement.getAttribute("data-theme");
+        if (currentTheme === "dark") {
+          htmlElement.setAttribute("data-theme", "light");
+          themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+          localStorage.setItem("darkMode", "false");
+        } else {
+          htmlElement.setAttribute("data-theme", "dark");
+          themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+          localStorage.setItem("darkMode", "true");
+        }
+      });
+
+      // Back to top button
+      const backToTopButton = document.getElementById("back-to-top");
+
+      window.addEventListener("scroll", function () {
+        if (window.scrollY > 300) {
+          backToTopButton.classList.add("visible");
+        } else {
+          backToTopButton.classList.remove("visible");
+        }
+      });
+
+      backToTopButton.addEventListener("click", function () {
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      });
+
+      // Chatbot functionality
+      document.addEventListener("DOMContentLoaded", function () {
+        const chatbotToggle = document.getElementById("chatbot-toggle");
+        const chatbotContainer = document.getElementById("chatbot-container");
+        const closeChat = document.getElementById("close-chatbot");
+        const chatMessages = document.getElementById("chatbot-messages");
+        const chatInput = document.getElementById("chatbot-input-field");
+        const sendButton = document.getElementById("send-message");
+
+        // Toggle chatbot visibility
+        chatbotToggle.addEventListener("click", function () {
+          console.log("Chatbot toggle clicked");
+          chatbotContainer.classList.add("active");
+          chatbotToggle.classList.add("hidden");
+          chatInput.focus();
+        });
+
+        closeChat.addEventListener("click", function () {
+          chatbotContainer.classList.remove("active");
+          chatbotToggle.classList.remove("hidden");
+        });
+
+        // Handle sending messages
+        function sendMessage() {
+          const message = chatInput.value.trim();
+          if (message) {
+            // Add user message to chat
+            addUserMessage(message);
+            chatInput.value = "";
+
+            // Show typing indicator
+            const typingIndicator = document.createElement("div");
+            typingIndicator.className = "message bot-message typing";
+            typingIndicator.innerHTML =
+              '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+            chatMessages.appendChild(typingIndicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Send to API
+            fetch("/api/chatbot", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ message: message }),
+            })
+              .then((response) => response.json())
+              .then((data) => {
+                // Remove typing indicator
+                chatMessages.removeChild(typingIndicator);
+
+                // Add bot response
+                if (data.success) {
+                  addBotMessage(data.response);
+                } else {
+                  addBotMessage(
+                    "I'm having trouble understanding that. Could you try asking something else?"
+                  );
+                }
+              })
+              .catch((error) => {
+                console.error("Error:", error);
+                // Remove typing indicator
+                chatMessages.removeChild(typingIndicator);
+                addBotMessage(
+                  "Sorry, I'm experiencing some technical difficulties. Please try again later."
+                );
+              });
+          }
+        }
+
+        sendButton.addEventListener("click", sendMessage);
+        chatInput.addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            sendMessage();
+          }
+        });
+
+        function addUserMessage(text) {
+          const messageElement = document.createElement("div");
+          messageElement.className = "message user-message";
+
+          const messageContent = document.createElement("div");
+          messageContent.className = "message-content";
+          messageContent.textContent = text;
+
+          messageElement.appendChild(messageContent);
+          chatMessages.appendChild(messageElement);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addBotMessage(text) {
+          const messageElement = document.createElement("div");
+          messageElement.className = "message bot-message";
+
+          const messageContent = document.createElement("div");
+          messageContent.className = "message-content";
+          messageContent.textContent = text;
+
+          messageElement.appendChild(messageContent);
+          chatMessages.appendChild(messageElement);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      });
+    </script>
+  </body>
 </html>

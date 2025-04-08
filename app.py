@@ -3,20 +3,32 @@ import sqlite3
 import requests
 import json
 import logging
+import os
+from ai_helpers import StockAI
+from functools import wraps
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Create Flask app with hardcoded configuration
 app = Flask(__name__)
-app.secret_key = 'development_key_123'
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_replace_in_production')
 
 # API configuration
 STOCKGEIST_API_KEY = 'EB577JAy0ombl1t2AvXjIow1GRrAJTIQ'
 STOCKGEIST_BASE_URL = 'https://api.stockgeist.ai'
 ALPHAVANTAGE_API_KEY = 'Q8WYAIKELRRKGL6O'
 ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query'
+
+# Initialize StockAI helper
+stock_ai = StockAI(
+    alpha_vantage_key=os.environ.get('ALPHA_VANTAGE_KEY', 'DEMO'),
+    stockgeist_key=os.environ.get('STOCKGEIST_KEY', 'DEMO')
+)
 
 # Database functions remain the same...
 def init_db():
@@ -229,60 +241,58 @@ def get_simulated_sentiment(ticker):
     }
 
 # Login decorator
-def login_required(view):
-    def wrapped_view(*args, **kwargs):
-        if 'logged_in' not in session:
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please log in to access this page', 'warning')
             return redirect(url_for('login'))
-        return view(*args, **kwargs)
-    wrapped_view.__name__ = view.__name__
-    return wrapped_view
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Routes
 @app.route('/')
 def index():
-    return redirect(url_for('login'))
+    return render_template('index.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
         
-        if not username or not password:
-            flash('Username and password are required')
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
             return render_template('register.html')
         
-        success = register_user(username, password)
-        
-        if success:
-            flash('Registration successful! Please log in.')
-            return redirect(url_for('login'))
-        else:
-            flash('Username already exists. Please choose another one.')
+        # In a real app, you would store user info in a database
+        # For demo purposes, just redirect to login
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
     
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        user = get_user(username)
-        
-        if user and user['password'] == password:
-            session['logged_in'] = True
-            session['username'] = username
-            return redirect(url_for('stocks'))
-        else:
-            flash('Invalid username or password')
+        # In a real app, you would verify credentials against a database
+        # For demo purposes, accept any login
+        session['user_id'] = username
+        flash('Login successful!', 'success')
+        return redirect(url_for('stocks'))
     
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.clear()
-    return redirect(url_for('login'))
+    session.pop('user_id', None)
+    flash('You have been logged out', 'info')
+    return redirect(url_for('index'))
 
 @app.route('/stocks')
 @login_required
@@ -312,6 +322,29 @@ def stock_detail(ticker):
         company_error=None if company_data_response['success'] else company_data_response['error'],
         sentiment=sentiment_data['sentiment']
     )
+
+# API Routes for chatbot and AI features
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot_api():
+    data = request.json
+    if not data or 'message' not in data:
+        return jsonify({
+            'success': False,
+            'error': 'No message provided'
+        }), 400
+    
+    response = stock_ai.generate_chatbot_response(data['message'])
+    return jsonify(response)
+
+@app.route('/api/predict/<ticker>')
+def predict_stock_api(ticker):
+    prediction = stock_ai.get_price_prediction(ticker)
+    return jsonify(prediction)
+
+@app.route('/api/similar/<ticker>')
+def similar_stocks_api(ticker):
+    similar = stock_ai.get_similar_stocks(ticker)
+    return jsonify(similar)
 
 if __name__ == '__main__':
     app.run(debug=True)

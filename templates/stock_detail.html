@@ -1,151 +1,433 @@
-{% extends 'base.html' %}
-
-{% block content %}
-<div class="stock-detail-container">
-    <div class="stock-header">
-        <h2>{{ ticker }}</h2>
-        <a href="{{ url_for('stocks') }}" class="btn back-btn">Back to Search</a>
-    </div>
-    
-    <!-- Company Overview Section -->
-    <div class="data-section">
-        <h3>Company Overview</h3>
-        
-        {% if company_data %}
-            <div class="company-overview">
-                <div class="company-header">
-                    <div class="company-name">{{ company_data.Name }}</div>
-                    <div class="company-exchange">{{ company_data.Exchange }}</div>
-                    <div class="company-industry">{{ company_data.Industry }}</div>
-                </div>
-                
-                <div class="company-description">
-                    <h4>Description</h4>
-                    <p>{{ company_data.Description }}</p>
-                </div>
-                
-                <div class="company-metrics">
-                    <div class="metrics-row">
-                        <div class="metric-card">
-                            <div class="metric-title">Market Cap</div>
-                            <div class="metric-value">${{ "{:,.2f}".format(company_data.MarketCapitalization|float) }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">PE Ratio</div>
-                            <div class="metric-value">{{ company_data.PERatio }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">EPS</div>
-                            <div class="metric-value">${{ company_data.EPS }}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="metrics-row">
-                        <div class="metric-card">
-                            <div class="metric-title">52-Week High</div>
-                            <div class="metric-value">${{ company_data['52WeekHigh'] }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">52-Week Low</div>
-                            <div class="metric-value">${{ company_data['52WeekLow'] }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">Dividend Yield</div>
-                            <div class="metric-value">{{ company_data.DividendYield }}%</div>
-                        </div>
-                    </div>
-                    
-                    <div class="metrics-row">
-                        <div class="metric-card">
-                            <div class="metric-title">Profit Margin</div>
-                            <div class="metric-value">{{ company_data.ProfitMargin }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">Beta</div>
-                            <div class="metric-value">{{ company_data.Beta }}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-title">Analyst Target</div>
-                            <div class="metric-value">${{ company_data.AnalystTargetPrice }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        {% else %}
-            <div class="error-message">
-                {% if company_error %}
-                    <p>Error retrieving company data: {{ company_error }}</p>
-                {% else %}
-                    <p>No company data available for {{ ticker }}</p>
-                {% endif %}
-            </div>
-        {% endif %}
-    </div>
-    
-    <!-- Sentiment Analysis Section -->
-<div class="data-section">
-    <h3>Market Sentiment Analysis</h3>
-    
-    <div class="sentiment-container">
-        <div class="sentiment-data">
-            <div class="data-card">
-                <h4>Overall Sentiment</h4>
-                <div class="sentiment-meter">
-                    <div class="meter-bar">
-                        <div class="meter-fill 
-                            {% if sentiment.score > 0.2 %}very-positive
-                            {% elif sentiment.score > 0 %}positive
-                            {% elif sentiment.score > -0.2 %}negative
-                            {% else %}very-negative{% endif %}"
-                            style="width: {{ (sentiment.score + 1) * 50 }}%;">
-                        </div>
-                    </div>
-                    <div class="meter-labels">
-                        <span>Negative</span>
-                        <span>Neutral</span>
-                        <span>Positive</span>
-                    </div>
-                </div>
-                <div class="sentiment-value">Score: {{ sentiment.score }}</div>
-                <div class="sentiment-dominant">Dominant: {{ sentiment.dominant|capitalize }}</div>
-            </div>
-            
-            <div class="data-card">
-                <h4>Sentiment Breakdown</h4>
-                <div class="sentiment-chart">
-                    <div class="chart-bar positive" style="height: {{ sentiment.positive * 100 }}%;" title="Positive: {{ sentiment.positive }}"></div>
-                    <div class="chart-bar neutral" style="height: {{ sentiment.neutral * 100 }}%;" title="Neutral: {{ sentiment.neutral }}"></div>
-                    <div class="chart-bar negative" style="height: {{ sentiment.negative * 100 }}%;" title="Negative: {{ sentiment.negative }}"></div>
-                </div>
-                <div class="chart-labels">
-                    <span>Positive</span>
-                    <span>Neutral</span>
-                    <span>Negative</span>
-                </div>
-            </div>
-            
-            <div class="data-card">
-                <h4>Emotional Intensity</h4>
-                <div class="emotional-meter">
-                    <div class="meter-bar">
-                        <div class="meter-fill" style="width: {{ sentiment.emotionality * 100 }}%;"></div>
-                    </div>
-                </div>
-                <div class="sentiment-value">Intensity: {{ sentiment.emotionality }}</div>
-            </div>
-        </div>
-        
-        <div class="messages-section">
-            <h4>Messages Analyzed</h4>
-            <div class="message-list">
-                {% for message in sentiment.messages %}
-                    <div class="message-item">{{ message }}</div>
-                {% endfor %}
-            </div>
-            {% if sentiment.source %}
-                <div class="data-source">Source: {{ sentiment.source }}</div>
-            {% endif %}
-        </div>
-    </div>
+{% extends 'base.html' %} {% block content %}
+<div class="stock-header">
+  <h2><i class="fas fa-chart-line"></i> {{ ticker }}</h2>
+  <a href="{{ url_for('stocks') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back to Search
+  </a>
 </div>
+
+<!-- Company Overview Section -->
+<div class="data-section">
+  <h3><i class="fas fa-building"></i> Company Overview</h3>
+
+  {% if company_data %}
+  <div class="company-overview">
+    <div class="company-header">
+      <div class="company-name">{{ company_data.Name }}</div>
+      <div>
+        <span class="company-exchange">{{ company_data.Exchange }}</span>
+        <span class="company-industry">{{ company_data.Industry }}</span>
+      </div>
+    </div>
+
+    <div class="company-description">
+      <h4><i class="fas fa-info-circle"></i> Description</h4>
+      <p>{{ company_data.Description }}</p>
+    </div>
+
+    <div class="company-metrics">
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-title">Market Cap</div>
+          <div class="metric-value">
+            ${{ "{:,.2f}".format(company_data.MarketCapitalization|float) }}
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">PE Ratio</div>
+          <div class="metric-value">{{ company_data.PERatio }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">EPS</div>
+          <div class="metric-value">${{ company_data.EPS }}</div>
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-title">52-Week High</div>
+          <div class="metric-value">${{ company_data['52WeekHigh'] }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">52-Week Low</div>
+          <div class="metric-value">${{ company_data['52WeekLow'] }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Dividend Yield</div>
+          <div class="metric-value">{{ company_data.DividendYield }}%</div>
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-title">Profit Margin</div>
+          <div class="metric-value">{{ company_data.ProfitMargin }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Beta</div>
+          <div class="metric-value">{{ company_data.Beta }}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Analyst Target</div>
+          <div class="metric-value">${{ company_data.AnalystTargetPrice }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="error-message">
+    {% if company_error %}
+    <p>
+      <i class="fas fa-exclamation-circle"></i> Error retrieving company data:
+      {{ company_error }}
+    </p>
+    {% else %}
+    <p>
+      <i class="fas fa-exclamation-circle"></i> No company data available for {{
+      ticker }}
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- AI Price Prediction Section -->
+<div class="data-section">
+  <h3><i class="fas fa-robot"></i> AI Price Prediction</h3>
+
+  <div class="prediction-container">
+    <div id="prediction-loading" class="loading-indicator">
+      Generating prediction...
+    </div>
+    <div
+      id="prediction-content"
+      class="prediction-content"
+      style="display: none"
+    >
+      <div class="prediction-header">
+        <div class="current-price">
+          <span>Current Price:</span>
+          <span id="current-price" class="price-value"></span>
+        </div>
+        <div class="prediction-price">
+          <span>7-Day Prediction:</span>
+          <span id="prediction-price" class="price-value"></span>
+        </div>
+      </div>
+
+      <div class="prediction-chart">
+        <div class="chart-container">
+          <div class="chart-bar">
+            <div id="prediction-bar" class="prediction-bar"></div>
+            <div id="confidence-range" class="confidence-range"></div>
+          </div>
+        </div>
+        <div class="chart-labels">
+          <div id="confidence-low" class="confidence-label"></div>
+          <div id="confidence-high" class="confidence-label"></div>
+        </div>
+      </div>
+
+      <div class="prediction-disclaimer">
+        <p>
+          <i class="fas fa-info-circle"></i> This prediction is based on
+          historical data and market sentiment. Actual results may vary
+          significantly. Not financial advice.
+        </p>
+      </div>
+    </div>
+
+    <div id="prediction-error" class="error-message" style="display: none">
+      <p>
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="prediction-error-message"></span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Similar Stocks Section -->
+<div class="data-section">
+  <h3><i class="fas fa-th"></i> Similar Stocks</h3>
+
+  <div class="similar-stocks-container">
+    <div id="similar-loading" class="loading-indicator">
+      Finding similar stocks...
+    </div>
+    <div id="similar-content" class="similar-content" style="display: none">
+      <p>
+        You might also be interested in these stocks from the
+        <span id="sector-name"></span> sector:
+      </p>
+      <div id="similar-stocks-list" class="similar-stocks-list"></div>
+    </div>
+
+    <div id="similar-error" class="error-message" style="display: none">
+      <p>
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="similar-error-message"></span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Sentiment Analysis Section -->
+<div class="data-section">
+  <h3><i class="fas fa-comments"></i> Market Sentiment Analysis</h3>
+
+  <div class="sentiment-container">
+    <div class="sentiment-data">
+      <div class="data-card">
+        <h4><i class="fas fa-balance-scale"></i> Overall Sentiment</h4>
+        <div class="sentiment-meter">
+          <div class="meter-bar">
+            <div
+              class="meter-fill {% if sentiment.score > 0.2 %}very-positive {% elif sentiment.score > 0 %}positive {% elif sentiment.score > -0.2 %}negative {% else %}very-negative{% endif %}"
+              style="width: {{ (sentiment.score + 1) * 50 }}%;"
+            ></div>
+          </div>
+          <div class="meter-labels">
+            <span>Negative</span>
+            <span>Neutral</span>
+            <span>Positive</span>
+          </div>
+        </div>
+        <div class="sentiment-value">Score: {{ sentiment.score }}</div>
+        <div class="sentiment-dominant">
+          {{ sentiment.dominant|capitalize }}
+        </div>
+      </div>
+
+      <div class="data-card">
+        <h4><i class="fas fa-chart-bar"></i> Sentiment Breakdown</h4>
+        <div class="sentiment-chart">
+          <div
+            class="chart-bar positive"
+            style="height: {{ sentiment.positive * 100 }}%;"
+            title="Positive: {{ sentiment.positive }}"
+          ></div>
+          <div
+            class="chart-bar neutral"
+            style="height: {{ sentiment.neutral * 100 }}%;"
+            title="Neutral: {{ sentiment.neutral }}"
+          ></div>
+          <div
+            class="chart-bar negative"
+            style="height: {{ sentiment.negative * 100 }}%;"
+            title="Negative: {{ sentiment.negative }}"
+          ></div>
+        </div>
+        <div class="chart-labels">
+          <span>Positive</span>
+          <span>Neutral</span>
+          <span>Negative</span>
+        </div>
+      </div>
+
+      <div class="data-card">
+        <h4><i class="fas fa-heartbeat"></i> Emotional Intensity</h4>
+        <div class="emotional-meter">
+          <div class="meter-bar">
+            <div
+              class="meter-fill"
+              style="width: {{ sentiment.emotionality * 100 }}%;"
+            ></div>
+          </div>
+        </div>
+        <div class="sentiment-value">
+          Intensity: {{ sentiment.emotionality }}
+        </div>
+        <div class="sentiment-info">
+          {% if sentiment.emotionality > 0.7 %}
+          <span class="badge badge-danger">High intensity</span>
+          {% elif sentiment.emotionality > 0.4 %}
+          <span class="badge badge-warning">Medium intensity</span>
+          {% else %}
+          <span class="badge badge-success">Low intensity</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="messages-section">
+      <h4><i class="fas fa-comments"></i> Messages Analyzed</h4>
+      <div class="message-list">
+        {% for message in sentiment.messages %}
+        <div class="message-item">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% if sentiment.source %}
+      <div class="data-source">Source: {{ sentiment.source }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  // Add animation to metrics cards
+  document.addEventListener("DOMContentLoaded", function () {
+    const metricCards = document.querySelectorAll(".metric-card");
+
+    metricCards.forEach((card, index) => {
+      // Initially set opacity to 0
+      card.style.opacity = "0";
+      card.style.transform = "translateY(20px)";
+
+      // Add transition property
+      card.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+
+      // Trigger animation with delay based on index
+      setTimeout(() => {
+        card.style.opacity = "1";
+        card.style.transform = "translateY(0)";
+      }, 100 * index);
+    });
+
+    // Add animation to data cards
+    const dataCards = document.querySelectorAll(".data-card");
+
+    dataCards.forEach((card, index) => {
+      card.style.opacity = "0";
+      card.style.transform = "translateY(20px)";
+
+      card.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+
+      setTimeout(() => {
+        card.style.opacity = "1";
+        card.style.transform = "translateY(0)";
+      }, 100 * index);
+    });
+
+    // Fetch AI price prediction
+    fetchPricePrediction();
+
+    // Fetch similar stocks
+    fetchSimilarStocks();
+  });
+
+  // Get price prediction from the API
+  function fetchPricePrediction() {
+    fetch("/api/predict/{{ ticker }}")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch prediction");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          displayPrediction(data);
+        } else {
+          showPredictionError(data.error || "Failed to generate prediction");
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching prediction:", error);
+        showPredictionError(error.message);
+      });
+  }
+
+  // Display the prediction data
+  function displayPrediction(data) {
+    document.getElementById("prediction-loading").style.display = "none";
+    document.getElementById("prediction-content").style.display = "block";
+
+    document.getElementById("current-price").textContent =
+      "$" + data.current_price.toFixed(2);
+    document.getElementById("prediction-price").textContent =
+      "$" + data.prediction.toFixed(2);
+    document.getElementById("confidence-low").textContent =
+      "$" + data.confidence_interval.low.toFixed(2);
+    document.getElementById("confidence-high").textContent =
+      "$" + data.confidence_interval.high.toFixed(2);
+
+    // Calculate the position and width for the prediction bar
+    const currentPrice = data.current_price;
+    const lowConf = data.confidence_interval.low;
+    const highConf = data.confidence_interval.high;
+    const predictionPrice = data.prediction;
+
+    // Calculate position percentages
+    const range = highConf - lowConf;
+    const barWidth = ((highConf - lowConf) / highConf) * 100;
+    const barLeft = ((lowConf - lowConf * 0.98) / highConf) * 100;
+
+    // Set position and style for confidence interval
+    const confidenceRange = document.getElementById("confidence-range");
+    confidenceRange.style.width = barWidth + "%";
+    confidenceRange.style.left = barLeft + "%";
+
+    // Calculate prediction indicator position
+    const predictionPosition =
+      ((predictionPrice - lowConf) / range) * barWidth + barLeft;
+    const predictionBar = document.getElementById("prediction-bar");
+    predictionBar.style.left = predictionPosition + "%";
+
+    // Set color based on direction
+    if (predictionPrice > currentPrice) {
+      predictionBar.classList.add("positive");
+    } else {
+      predictionBar.classList.add("negative");
+    }
+  }
+
+  // Show error message if prediction fails
+  function showPredictionError(message) {
+    document.getElementById("prediction-loading").style.display = "none";
+    document.getElementById("prediction-error").style.display = "block";
+    document.getElementById("prediction-error-message").textContent = message;
+  }
+
+  // Get similar stocks from the API
+  function fetchSimilarStocks() {
+    fetch("/api/similar/{{ ticker }}")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch similar stocks");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          displaySimilarStocks(data);
+        } else {
+          showSimilarStocksError(data.error || "Failed to find similar stocks");
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching similar stocks:", error);
+        showSimilarStocksError(error.message);
+      });
+  }
+
+  // Display similar stocks
+  function displaySimilarStocks(data) {
+    document.getElementById("similar-loading").style.display = "none";
+    document.getElementById("similar-content").style.display = "block";
+
+    document.getElementById("sector-name").textContent = data.sector;
+
+    const stocksList = document.getElementById("similar-stocks-list");
+    stocksList.innerHTML = "";
+
+    data.similar_stocks.forEach((ticker) => {
+      const stockLink = document.createElement("a");
+      stockLink.href = `/stocks/${ticker}`;
+      stockLink.className = "similar-stock-card";
+      stockLink.innerHTML = `
+        <div class="similar-stock-ticker">${ticker}</div>
+        <i class="fas fa-arrow-right"></i>
+      `;
+
+      stocksList.appendChild(stockLink);
+    });
+  }
+
+  // Show error message if similar stocks fetch fails
+  function showSimilarStocksError(message) {
+    document.getElementById("similar-loading").style.display = "none";
+    document.getElementById("similar-error").style.display = "block";
+    document.getElementById("similar-error-message").textContent = message;
+  }
+</script>
 {% endblock %}
