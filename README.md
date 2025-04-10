@@ -25,7 +25,7 @@ This application combines quantitative financial metrics with qualitative sentim
 
    ```bash
    git clone <repository-url>
-   cd stock-ticker-app
+   cd semesterproject
    ```
 
 2. **Create a virtual environment**
