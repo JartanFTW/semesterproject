@@ -32,8 +32,8 @@ class OpenRouterWrapper:
             base_url="https://openrouter.ai/api/v1",
             api_key=self.openrouter_key,
             default_headers={
-                "HTTP-Referer": "https://yourwebsite.com",  # Optional, replace with your site
-                "X-Title": "Stock Market Assistant"         # Optional, title of your app
+                "HTTP-Referer": "https://stockai.app",  # Replace with your actual site if you have one
+                "X-Title": "Stock Market Assistant"
             }
         )
         
@@ -93,6 +93,7 @@ Remember: Your purpose is to educate users about financial markets and provide c
         
         # Test connection to validate API key on initialization
         self.api_available = self._test_connection()
+        logger.info(f"OpenRouter API availability: {self.api_available}")
     
     def _test_connection(self):
         """Test API connection and key validity"""
@@ -109,7 +110,7 @@ Remember: Your purpose is to educate users about financial markets and provide c
             logger.warning(f"OpenRouter API connection failed: {str(e)}")
             return False
     
-    def get_response(self, user_message, context=None, ticker=None):
+    def get_response(self, user_message, context=None, ticker=None, force_api=False):
         """
         Get a response from the AI using OpenRouter
         
@@ -117,6 +118,7 @@ Remember: Your purpose is to educate users about financial markets and provide c
             user_message (str): The user's message
             context (dict, optional): Additional context to include
             ticker (str, optional): Stock ticker if applicable
+            force_api (bool): If True, will try harder to use the API and avoid falling back to rule-based responses
             
         Returns:
             dict: Response with success flag and message
@@ -157,8 +159,9 @@ Remember: Your purpose is to educate users about financial markets and provide c
             # Prepare messages for the API request
             messages = [system_message] + self.message_history
             
-            # If API is not available, use rule-based fallback
-            if not self.api_available:
+            # For chatbot specifically, we want to ensure we use the AI if at all possible
+            # If API is not available and this is not a chatbot request that forces API usage
+            if not self.api_available and not force_api:
                 return self._generate_rule_based_response(user_message, ticker, context)
             
             # Try primary model first
@@ -174,6 +177,9 @@ Remember: Your purpose is to educate users about financial markets and provide c
                 
                 ai_response = completion.choices[0].message.content
                 self.message_history.append({"role": "assistant", "content": ai_response})
+                
+                # Update API status to available since it worked
+                self.api_available = True
                 
                 return {
                     "success": True,
@@ -197,6 +203,9 @@ Remember: Your purpose is to educate users about financial markets and provide c
                         ai_response = completion.choices[0].message.content
                         self.message_history.append({"role": "assistant", "content": ai_response})
                         
+                        # Update API status to available since a fallback worked
+                        self.api_available = True
+                        
                         return {
                             "success": True,
                             "response": ai_response
@@ -205,11 +214,32 @@ Remember: Your purpose is to educate users about financial markets and provide c
                         logger.warning(f"Fallback model {fallback_model} failed: {str(fallback_error)}")
                         continue
                 
-                # If all models fail, use rule-based response
+                # If all models fail, update API status
+                self.api_available = False
+                
+                # If force_api is True, we return an error about the API being unavailable
+                if force_api:
+                    return {
+                        "success": False,
+                        "error": "I'm having trouble connecting to my AI services right now. Please try again later."
+                    }
+                
+                # If not forcing API, use rule-based response
                 return self._generate_rule_based_response(user_message, ticker, context)
                 
         except Exception as e:
             logger.error(f"Error in OpenRouterWrapper.get_response: {str(e)}")
+            
+            # Update API status since we had an error
+            self.api_available = False
+            
+            # If force_api is True, we return an error
+            if force_api:
+                return {
+                    "success": False,
+                    "error": "I'm having trouble processing your request. Please try again with a different question."
+                }
+                
             return self._generate_rule_based_response(user_message, ticker, context)
     
     def _generate_rule_based_response(self, user_message, ticker=None, context=None):
@@ -431,8 +461,41 @@ class StockAI:
             if term_match:
                 context['financial_term'] = f"{term_match.upper()}: {self.financial_terms[term_match]}"
             
-            # Get response from the AI
-            response = self.ai.get_response(user_message, context, ticker)
+            # For chatbot responses, we want to prioritize using the AI model for natural language
+            # by setting force_api=True, this will make the wrapper try extra hard to use the AI
+            # and only fall back to rule-based responses as a last resort
+            response = self.ai.get_response(user_message, context, ticker, force_api=True)
+            
+            # If the AI response failed, try simpler rule-based fallback here
+            if not response['success']:
+                # Check for simple factual queries we can handle
+                message = user_message.lower()
+                
+                # Stock price query
+                if ticker and any(word in message for word in ["price", "worth", "cost", "trading at", "how much"]):
+                    try:
+                        stock_data = self._get_stock_data(ticker)
+                        if stock_data['success']:
+                            return {
+                                'success': True,
+                                'response': f"{ticker} is currently trading at ${stock_data['price']}, with a change of {stock_data['change']} today."
+                            }
+                    except:
+                        pass
+                
+                # Simple greeting
+                if any(word in message for word in ["hello", "hi", "hey", "greetings"]):
+                    return {
+                        'success': True,
+                        'response': "Hello! I'm your stock market assistant. How can I help you with financial information today?"
+                    }
+                    
+                # Help request
+                if any(word in message for word in ["help", "what can you do", "assist"]):
+                    return {
+                        'success': True,
+                        'response': "I can help with stock information, price predictions, finding similar stocks, and explaining financial concepts. Just ask me about any stock or financial term you're interested in!"
+                    }
             
             return response
             
