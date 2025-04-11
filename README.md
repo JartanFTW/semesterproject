@@ -60,6 +60,7 @@ This application combines quantitative financial metrics with qualitative sentim
    ```python
    STOCKGEIST_API_KEY = 'your_stockgeist_api_key'
    ALPHAVANTAGE_API_KEY = 'your_alphavantage_api_key'
+   OPENROUTER_API_KEY = 'your_openrouter_api_key'
    ```
 
 6. **Run the application**
