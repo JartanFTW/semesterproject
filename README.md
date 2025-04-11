@@ -53,12 +53,6 @@ This application combines quantitative financial metrics with qualitative sentim
    pip install -r requirements.txt
    ```
 
-   > **Note**: If `requirements.txt` is not available, install the following packages:
-   >
-   > ```bash
-   > pip install flask requests
-   > ```
-
 5. **Configure API keys**
 
    The application comes pre-configured with test API keys. For production use, replace these in `app.py`:
