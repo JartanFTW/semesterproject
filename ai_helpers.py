@@ -25,7 +25,7 @@ class OpenRouterWrapper:
     def __init__(self, openrouter_key=None):
         """Initialize the OpenRouter wrapper with the API key"""
         # Updated API key format and setup
-        self.openrouter_key = openrouter_key or "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"
+        self.openrouter_key = openrouter_key or "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"
         
         # Properly initialize the OpenAI client with headers
         self.client = OpenAI(
