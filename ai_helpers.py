@@ -17,28 +17,337 @@ import yfinance as yf
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class OpenRouterWrapper:
+    """
+    Wrapper for OpenRouter API to provide financial and stock expertise
+    """
+    
+    def __init__(self, openrouter_key=None):
+        """Initialize the OpenRouter wrapper with the API key"""
+        # Updated API key format and setup
+        self.openrouter_key = openrouter_key or "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"
+        
+        # Properly initialize the OpenAI client with headers
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=self.openrouter_key,
+            default_headers={
+                "HTTP-Referer": "https://yourwebsite.com",  # Optional, replace with your site
+                "X-Title": "Stock Market Assistant"         # Optional, title of your app
+            }
+        )
+        
+        # Available models on OpenRouter - we'll use the best free ones
+        self.primary_model = "meta-llama/llama-4-maverick:free"
+        self.fallback_models = [
+            "mistralai/mistral-7b-instruct:free",
+            "google/gemma-7b-it:free",
+            "openchat/openchat-7b:free"
+        ]
+        
+        # Initialize conversation history
+        self.message_history = []
+        
+        # Financial expertise system prompt
+        self.finance_expert_prompt = """You are StockAI, a highly knowledgeable financial advisor and stock market expert. 
+You have extensive knowledge about:
+
+1. MARKET FUNDAMENTALS
+- Stock valuation methods (P/E, P/B, DCF models, etc.)
+- Economic indicators and their impact on markets
+- Market cycles, bull/bear markets, and trend analysis
+- Sector rotation and industry performance patterns
+
+2. TECHNICAL ANALYSIS
+- Chart patterns and their interpretations
+- Technical indicators (RSI, MACD, Bollinger Bands, etc.)
+- Support/resistance levels and price action
+- Volume analysis and market sentiment indicators
+
+3. INVESTMENT STRATEGIES
+- Value investing principles (Graham, Buffett methodologies)
+- Growth investing approaches (GARP, momentum strategies)
+- Income investing (dividend strategies, yield analysis)
+- Risk management and portfolio allocation techniques
+
+4. COMPANY ANALYSIS
+- Financial statement analysis and key metrics
+- Management evaluation and corporate governance
+- Competitive positioning and market share analysis
+- Product pipeline and R&D assessment
+
+5. MACROECONOMIC FACTORS
+- Interest rates and monetary policy impacts
+- Inflation/deflation effects on asset classes
+- Currency fluctuations and global trade dynamics
+- Fiscal policy and regulatory environment changes
+
+When responding to questions:
+- Provide concise, actionable insights without unnecessary jargon
+- Cite relevant financial principles and theories when appropriate
+- Acknowledge both bull and bear perspectives when discussing outlook
+- Clearly distinguish between established facts and market opinions
+- Focus on educational value rather than specific investment recommendations
+
+Remember: Your purpose is to educate users about financial markets and provide context for investment decisions, not to make specific buy/sell recommendations. Write one paragraphs, with no bullet points to the user."""
+        
+        # Test connection to validate API key on initialization
+        self.api_available = self._test_connection()
+    
+    def _test_connection(self):
+        """Test API connection and key validity"""
+        try:
+            # Simple test with minimal tokens
+            self.client.chat.completions.create(
+                model=self.primary_model,
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=5
+            )
+            logger.info("OpenRouter API connection successful")
+            return True
+        except Exception as e:
+            logger.warning(f"OpenRouter API connection failed: {str(e)}")
+            return False
+    
+    def get_response(self, user_message, context=None, ticker=None):
+        """
+        Get a response from the AI using OpenRouter
+        
+        Args:
+            user_message (str): The user's message
+            context (dict, optional): Additional context to include
+            ticker (str, optional): Stock ticker if applicable
+            
+        Returns:
+            dict: Response with success flag and message
+        """
+        try:
+            # Add the message to history
+            self.message_history.append({"role": "user", "content": user_message})
+            
+            # Limit history to last 10 messages to avoid token limits
+            if len(self.message_history) > 10:
+                self.message_history = self.message_history[-10:]
+            
+            # Create system message with financial expertise
+            system_message = {
+                "role": "system",
+                "content": self.finance_expert_prompt
+            }
+            
+            # Add context about current ticker if available
+            if ticker:
+                system_message["content"] += f"\n\nCurrent context: User is asking about {ticker} stock."
+                
+                # Try to get stock info from yfinance (which is free)
+                try:
+                    stock_info = self._get_basic_stock_info(ticker)
+                    if stock_info:
+                        system_message["content"] += f"\n\n{stock_info}"
+                except Exception as e:
+                    logger.warning(f"Could not get stock info for {ticker}: {str(e)}")
+            
+            # Add any additional context
+            if context:
+                context_str = "\n\nAdditional context:\n"
+                for key, value in context.items():
+                    context_str += f"- {key}: {value}\n"
+                system_message["content"] += context_str
+            
+            # Prepare messages for the API request
+            messages = [system_message] + self.message_history
+            
+            # If API is not available, use rule-based fallback
+            if not self.api_available:
+                return self._generate_rule_based_response(user_message, ticker, context)
+            
+            # Try primary model first
+            try:
+                logger.info(f"Attempting to use primary model: {self.primary_model}")
+                completion = self.client.chat.completions.create(
+                    model=self.primary_model,
+                    messages=messages,
+                    max_tokens=500,
+                    temperature=0.7,
+                    timeout=30
+                )
+                
+                ai_response = completion.choices[0].message.content
+                self.message_history.append({"role": "assistant", "content": ai_response})
+                
+                return {
+                    "success": True,
+                    "response": ai_response
+                }
+            except Exception as primary_error:
+                logger.warning(f"Primary model failed: {str(primary_error)}")
+                
+                # Try fallback models in sequence
+                for fallback_model in self.fallback_models:
+                    try:
+                        logger.info(f"Trying fallback model: {fallback_model}")
+                        completion = self.client.chat.completions.create(
+                            model=fallback_model,
+                            messages=messages,
+                            max_tokens=350,
+                            temperature=0.7,
+                            timeout=20
+                        )
+                        
+                        ai_response = completion.choices[0].message.content
+                        self.message_history.append({"role": "assistant", "content": ai_response})
+                        
+                        return {
+                            "success": True,
+                            "response": ai_response
+                        }
+                    except Exception as fallback_error:
+                        logger.warning(f"Fallback model {fallback_model} failed: {str(fallback_error)}")
+                        continue
+                
+                # If all models fail, use rule-based response
+                return self._generate_rule_based_response(user_message, ticker, context)
+                
+        except Exception as e:
+            logger.error(f"Error in OpenRouterWrapper.get_response: {str(e)}")
+            return self._generate_rule_based_response(user_message, ticker, context)
+    
+    def _generate_rule_based_response(self, user_message, ticker=None, context=None):
+        """Generate a rule-based response when API calls fail"""
+        message = user_message.lower()
+        
+        # Financial dictionary for rule-based responses
+        financial_terms = {
+            "stock": "A stock represents ownership in a company. When you buy a stock, you're purchasing a small piece of that company.",
+            "pe ratio": "The Price-to-Earnings (P/E) ratio compares a company's stock price to its earnings per share, helping determine if a stock might be overvalued or undervalued.",
+            "dividend": "A dividend is a portion of a company's earnings paid to shareholders, usually distributed quarterly.",
+            "market cap": "Market capitalization is the total value of a company's outstanding shares, calculated by multiplying share price by number of shares.",
+            "bull market": "A bull market is when prices are rising or expected to rise, typically indicating investor confidence.",
+            "bear market": "A bear market is when prices are falling or expected to fall, typically indicating investor pessimism.",
+            "volatility": "Volatility measures how much a stock's price fluctuates. High volatility means the price can change dramatically over a short period.",
+            "etf": "An Exchange-Traded Fund (ETF) is an investment fund that trades on stock exchanges, typically tracking an index, sector, or commodity."
+        }
+        
+        # Check if asking about a financial term
+        for term, definition in financial_terms.items():
+            if term in message and any(phrase in message for phrase in ["what is", "explain", "tell me about", "meaning of"]):
+                return {"success": True, "response": definition}
+        
+        # Stock price inquiry
+        if ticker and any(word in message for word in ["price", "worth", "value", "trading at", "cost"]):
+            try:
+                stock_info = self._get_basic_stock_info(ticker)
+                if stock_info:
+                    return {"success": True, "response": f"Here's the latest information for {ticker}: {stock_info}"}
+            except:
+                pass
+            return {"success": True, "response": f"I don't have the latest data for {ticker}, but you can find current prices on financial websites like Yahoo Finance or Google Finance."}
+        
+        # General greeting
+        if any(word in message for word in ["hello", "hi", "hey", "greetings"]):
+            return {"success": True, "response": "Hello! I'm your stock market assistant. How can I help you with financial information today?"}
+        
+        # Help request
+        if any(word in message for word in ["help", "can you do", "assist"]):
+            return {"success": True, "response": "I can help with stock information, explain financial terms, find similar stocks, and provide market insights. What would you like to know?"}
+            
+        # If context contains a financial term
+        if context and 'financial_term' in context:
+            return {"success": True, "response": context['financial_term']}
+        
+        # Default response
+        if ticker:
+            return {"success": True, "response": f"I see you're interested in {ticker}. You can ask about its price, recent performance, or company information."}
+        else:
+            return {"success": True, "response": "I'm your stock market assistant. Feel free to ask about specific stocks, financial concepts, or market trends."}
+    
+    def _get_basic_stock_info(self, ticker):
+        """
+        Get basic stock information using yfinance (free)
+        
+        Args:
+            ticker (str): Stock ticker symbol
+            
+        Returns:
+            str: Formatted stock information
+        """
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            
+            if not info:
+                return f"No information available for {ticker}."
+                
+            # Get current price data safely
+            try:
+                history = stock.history(period="2d")
+                
+                if history.empty:
+                    price_str = "Price data unavailable."
+                else:
+                    current_price = history['Close'].iloc[-1] if len(history) > 0 else None
+                    previous_close = history['Close'].iloc[-2] if len(history) > 1 else None
+                    
+                    # Calculate change
+                    if current_price is not None and previous_close is not None:
+                        change = current_price - previous_close
+                        change_percent = (change / previous_close) * 100
+                        price_str = f"Current Price: ${current_price:.2f}, Change: {'+' if change >= 0 else ''}{change:.2f} ({'+' if change >= 0 else ''}{change_percent:.2f}%)"
+                    elif current_price is not None:
+                        price_str = f"Current Price: ${current_price:.2f}"
+                    else:
+                        price_str = "Price data unavailable."
+            except Exception as e:
+                logger.warning(f"Error getting price data for {ticker}: {str(e)}")
+                price_str = "Price data unavailable."
+            
+            # Company info - safely get values
+            company_name = info.get('shortName', info.get('longName', 'Unknown'))
+            sector = info.get('sector', 'Unknown sector')
+            industry = info.get('industry', 'Unknown industry')
+            
+            # Format basic info
+            result = f"{company_name} ({ticker}). {sector}, {industry}. {price_str}"
+            
+            # Add some key metrics if available
+            metrics = []
+            
+            if 'marketCap' in info and info['marketCap']:
+                # Format market cap in billions/millions for readability
+                market_cap = info['marketCap']
+                if market_cap >= 1000000000:
+                    metrics.append(f"Market Cap: ${market_cap/1000000000:.2f}B")
+                else:
+                    metrics.append(f"Market Cap: ${market_cap/1000000:.2f}M")
+            
+            if 'trailingPE' in info and info['trailingPE']:
+                metrics.append(f"P/E: {info['trailingPE']:.2f}")
+                
+            if 'dividendYield' in info and info['dividendYield']:
+                metrics.append(f"Div Yield: {info['dividendYield']*100:.2f}%")
+            
+            if metrics:
+                result += " " + ", ".join(metrics)
+                
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Error getting stock info for {ticker}: {str(e)}")
+            return f"Unable to retrieve information for {ticker}."
+
 class StockAI:
     """
     AI features for stock analysis and chatbot interactions
     """
     
-    def __init__(self, alpha_vantage_key, stockgeist_key, openrouter_key=None, polygon_key=None):
-        """Initialize with API keys"""
+    def __init__(self, alpha_vantage_key=None, stockgeist_key=None, openrouter_key=None, polygon_key=None):
+        """Initialize with API keys (only openrouter_key is actually required now)"""
         self.alpha_vantage_key = alpha_vantage_key
         self.stockgeist_key = stockgeist_key
-        self.alpha_vantage_base = "https://www.alphavantage.co/query"
-        self.stockgeist_base = "https://api.stockgeist.ai"
-        self.polygon_key = polygon_key or "BpKCtdhu6oQsG2VqITeyipcCslWpnmTW"
-        self.polygon_base = "https://api.polygon.io"
+        self.polygon_key = polygon_key
         
-        # OpenRouter setup
-        self.openrouter_key = openrouter_key or "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"
-        self.openai_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.openrouter_key,
-        )
-        # Using Mistral-7B-Instruct which is available on OpenRouter
-        self.ai_model = "mistralai/mistral-7b-instruct:free"
+        # Create OpenRouter AI wrapper
+        self.ai = OpenRouterWrapper(openrouter_key)
         
         # Financial terms dictionary for quick reference
         self.financial_terms = {
@@ -62,19 +371,30 @@ class StockAI:
             "ROI": "Return on Investment (ROI) is a performance measure used to evaluate the efficiency of an investment. It's calculated by dividing the benefit of an investment by its cost.",
             "index fund": "An index fund is a type of mutual fund or ETF that tracks a specific market index, like the S&P 500.",
             "leverage": "Leverage involves using borrowed capital to invest, with the expectation that the profits will be greater than the interest paid.",
-            "fibonacci": "Fibonacci retracement levels are horizontal lines that indicate where support and resistance are likely to occur, based on the Fibonacci sequence."
+            "fibonacci": "Fibonacci retracement levels are horizontal lines that indicate where support and resistance are likely to occur, based on the Fibonacci sequence.",
+            "support level": "A price level where a stock tends to find buying interest that prevents it from falling further, often based on historical trading patterns.",
+            "resistance level": "A price level where a stock tends to face selling pressure that prevents it from rising further, often based on historical trading patterns.",
+            "technical analysis": "A method of evaluating securities by analyzing statistics generated by market activity, such as past prices and volume.",
+            "fundamental analysis": "A method of evaluating securities by attempting to measure the intrinsic value of a stock using financial data and economic factors.",
+            "dividend aristocrat": "A company in the S&P 500 that has increased its dividend payout for at least 25 consecutive years.",
+            "market order": "An order to buy or sell a security immediately at the current market price.",
+            "limit order": "An order to buy or sell a security at a specific price or better.",
+            "stop-loss order": "An order to buy or sell a security when its price reaches a specified stop price, designed to limit an investor's loss.",
+            "option": "A contract giving the buyer the right, but not the obligation, to buy or sell an underlying asset at a specific price on or before a certain date.",
+            "call option": "An option contract giving the holder the right to buy a specified amount of an underlying security at a specified price within a specified time.",
+            "put option": "An option contract giving the holder the right to sell a specified amount of an underlying security at a specified price within a specified time.",
+            "beta": "A measure of a stock's volatility in relation to the overall market. A beta greater than 1 indicates higher volatility than the market.",
+            "alpha": "A measure of an investment's performance relative to a benchmark index, adjusted for risk.",
+            "rsi": "Relative Strength Index, a momentum oscillator that measures the speed and change of price movements on a scale from 0 to 100.",
+            "macd": "Moving Average Convergence Divergence, a trend-following momentum indicator showing the relationship between two moving averages of a security's price."
         }
         
         # Initialize conversation context
         self.conversation_context = {}
-        # Track message history for the AI
-        self.message_history = []
         
     def generate_chatbot_response(self, user_message, current_ticker=None):
         """
-        Generate a response for the chatbot using OpenRouter API with Mistral-7B-Instruct model
-        
-        This version uses the Mistral-7B-Instruct model via OpenRouter with the OpenAI client
+        Generate a response for the chatbot using the OpenRouterWrapper
         
         Returns:
             dict: A dictionary with success flag and response message
@@ -90,7 +410,7 @@ class StockAI:
                 if potential_ticker not in common_words:
                     mentioned_ticker = potential_ticker
             
-            # Check for ticker in context if none mentioned
+            # Use mentioned ticker or current context ticker
             ticker = mentioned_ticker or current_ticker
             
             # Store this ticker in context for future responses
@@ -98,188 +418,51 @@ class StockAI:
                 self.conversation_context['last_ticker'] = ticker
             elif 'last_ticker' in self.conversation_context:
                 ticker = self.conversation_context.get('last_ticker')
-                
-            # Add user message to history
-            self.message_history.append({"role": "user", "content": user_message})
             
-            # Keep only the last 10 messages to avoid token limits
-            if len(self.message_history) > 10:
-                self.message_history = self.message_history[-10:]
-            
-            # Add system message for context
-            system_message = {
-                "role": "system", 
-                "content": """You are StockAI, a concise stock market assistant. Keep responses brief and direct. 
-                Current stock context: {ticker_info}
-                Rules:
-                - Be direct and concise
-                - Keep answers to 1-2 sentences max
-                - Focus on key information
-                - Reference current stock when relevant
-                - No bullet points or lists
-                - Avoid unnecessary explanations""".format(
-                    ticker_info=f"You are currently viewing {ticker} stock information." if ticker else "No specific stock is currently selected."
-                )
-            }
-            
-            # Add stock information if a ticker is mentioned
-            if ticker:
-                stock_data = self._get_stock_data(ticker)
-                if stock_data['success']:
-                    system_message["content"] += f"\nCurrent {ticker} data: Price ${stock_data['price']}, Change {stock_data['change']}"
-            
-            # Prepare messages for API request
-            messages = [system_message] + self.message_history
-            
-            try:
-                logger.info(f"Sending request to OpenRouter API with model: {self.ai_model}")
-                logger.info(f"Messages being sent: {json.dumps(messages, indent=2)}")
-                
-                # Call OpenRouter API with Mistral-7B-Instruct model
-                completion = self.openai_client.chat.completions.create(
-                    model=self.ai_model,
-                    messages=messages,
-                    max_tokens=100,  # Reduced further to encourage very short responses
-                    temperature=0.7,
-                    timeout=15
-                )
-                
-                logger.info(f"Received response from OpenRouter API: {completion}")
-                
-                # Check for provider errors
-                if hasattr(completion, 'error') and completion.error:
-                    logger.error(f"Provider error: {completion.error}")
-                    raise Exception(f"Provider error: {completion.error.get('message', 'Unknown error')}")
-                
-                # Extract response
-                if completion and hasattr(completion, 'choices') and completion.choices:
-                    ai_response = completion.choices[0].message.content
-                    logger.info(f"Successfully extracted AI response: {ai_response}")
+            # Check if the query is about a financial term we have in our database
+            term_match = None
+            for term in self.financial_terms:
+                if term in user_message.lower():
+                    term_match = term
+                    break
                     
-                    # Add AI response to history
-                    self.message_history.append({"role": "assistant", "content": ai_response})
-                    
-                    return {
-                        'success': True,
-                        'response': ai_response
-                    }
-                else:
-                    logger.error(f"Invalid response format from OpenRouter API. Response: {completion}")
-                    raise Exception("Invalid response format from OpenRouter API")
-                
-            except Exception as api_error:
-                logger.error(f"OpenRouter API error: {str(api_error)}")
-                logger.error(f"Error type: {type(api_error)}")
-                logger.error(f"Error details: {api_error.__dict__ if hasattr(api_error, '__dict__') else 'No details available'}")
-                
-                # Fallback to rule-based response
-                fallback_response = self._generate_fallback_response(user_message, ticker)
-                
-                return {
-                    'success': True,
-                    'response': fallback_response
-                }
+            # Add term definition to context if found
+            context = {}
+            if term_match:
+                context['financial_term'] = f"{term_match.upper()}: {self.financial_terms[term_match]}"
+            
+            # Get response from the AI
+            response = self.ai.get_response(user_message, context, ticker)
+            
+            return response
             
         except Exception as e:
             logger.error(f"Error generating chatbot response: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No details available'}")
             return {
                 'success': False,
                 'error': f"I'm having trouble processing your request right now. Could you try asking in a different way?"
             }
     
-    def _generate_fallback_response(self, user_message, ticker=None):
-        """
-        Generate a fallback response when the API fails
-        Uses the old rule-based implementation for fallback
-        """
-        message = user_message.lower().strip()
-        
-        # Greetings
-        if re.search(r'\b(hello|hi|hey|greetings|howdy)\b', message):
-            return "Hello! I'm your AI stock assistant. How can I help you with investments or financial information today?"
-            
-        # Help requests
-        elif re.search(r'\b(help|guide|assist|support|what can you do)\b', message):
-            return """I can help with:
-• Stock information and price data
-• Price predictions and market sentiment
-• Similar stocks to diversify your portfolio
-• Explaining financial terms and concepts
-• Basic investment advice
-
-Try asking about a specific stock like "Tell me about AAPL" or explain concepts like "What is a P/E ratio?"
-"""
-        
-        # Stock price requests
-        elif re.search(r'\b(price|worth|value|trading at|how much is|cost|quote)\b', message) and ticker:
-            stock_data = self._get_stock_data(ticker)
-            if stock_data['success']:
-                change_direction = "up" if "+" in stock_data['change'] else "down"
-                return f"{ticker} is currently trading at ${stock_data['price']}. The stock has moved {stock_data['change']} ({change_direction}) today."
-            else:
-                return f"I couldn't find price information for {ticker}. Are you sure that's a valid ticker symbol?"
-        
-        # Financial term explanation
-        elif 'what is' in message or 'explain' in message or 'definition of' in message or 'meaning of' in message:
-            # Check for any financial term in the message
-            found_term = None
-            for term in self.financial_terms.keys():
-                if term in message:
-                    found_term = term
-                    break
-            
-            if found_term:
-                return self.financial_terms[found_term]
-        
-        # Default response
-        if ticker:
-            return f"I see you mentioned {ticker}. What would you like to know? I can tell you about its current price, make predictions, find similar stocks, or provide other information about this company."
-        else:
-            return "I'm your stock market assistant. You can ask me about specific stocks (like AAPL or MSFT), get explanations of financial terms, find similar stocks to ones you're interested in, or get price predictions. How can I help you today?"
-    
     def get_price_prediction(self, ticker):
         """
-        Generate a simple price prediction for a stock
-        
-        This is a placeholder for a real ML-based prediction model.
-        In a production environment, this would use a trained model.
+        Generate a price prediction for a stock using the AI
         """
         try:
-            # Get current stock data
-            stock_data = self._get_stock_data(ticker)
+            # Create a prompt specifically for price prediction
+            prediction_prompt = f"What is your price prediction for {ticker} stock for the next 7 days? Include the current price, your prediction, and the reasoning behind it."
             
-            if not stock_data['success']:
+            # Get response from the AI
+            response = self.ai.get_response(prediction_prompt, context={"request_type": "price_prediction"}, ticker=ticker)
+            
+            if response['success']:
                 return {
-                    'success': False,
-                    'error': stock_data['error']
+                    'success': True,
+                    'prediction_text': response['response'],
+                    'time_frame': '7 days'
                 }
-            
-            # Generate a simple prediction
-            # This is just for demonstration; a real system would use ML
-            current_price = float(stock_data['price'])
-            sentiment = self._get_simple_sentiment(ticker)
-            
-            # Generate a random prediction with some bias based on sentiment
-            sentiment_factor = 0
-            if sentiment == 'positive':
-                sentiment_factor = 0.03  # Positive bias
-            elif sentiment == 'negative':
-                sentiment_factor = -0.03  # Negative bias
+            else:
+                return response
                 
-            # Random prediction with sentiment bias
-            prediction_factor = random.uniform(-0.05, 0.05) + sentiment_factor
-            prediction = current_price * (1 + prediction_factor)
-            
-            return {
-                'success': True,
-                'current_price': current_price,
-                'prediction': round(prediction, 2),
-                'time_frame': '7 days',
-                'sentiment_influence': sentiment
-            }
-            
         except Exception as e:
             logger.error(f"Error in price prediction for {ticker}: {str(e)}")
             return {
@@ -289,58 +472,23 @@ Try asking about a specific stock like "Tell me about AAPL" or explain concepts 
     
     def get_similar_stocks(self, ticker):
         """
-        Find similar stocks based on industry and market cap
-        
-        This is a simplified implementation for demonstration purposes.
-        A production system would use more sophisticated clustering or similarity metrics.
+        Find similar stocks using the AI
         """
         try:
-            # Common stock sectors and some of their tickers
-            # This is a simplified mapping
-            stock_sectors = {
-                'tech': ['AAPL', 'MSFT', 'GOOGL', 'META', 'AMZN', 'NVDA', 'ADBE', 'CRM', 'INTC', 'CSCO'],
-                'finance': ['JPM', 'BAC', 'WFC', 'C', 'GS', 'MS', 'AXP', 'V', 'MA', 'BLK'],
-                'healthcare': ['JNJ', 'PFE', 'MRK', 'ABBV', 'UNH', 'BMY', 'ABT', 'TMO', 'LLY', 'AMGN'],
-                'consumer': ['PG', 'KO', 'PEP', 'WMT', 'MCD', 'SBUX', 'NKE', 'DIS', 'HD', 'LOW'],
-                'energy': ['XOM', 'CVX', 'BP', 'RDS.A', 'TOT', 'COP', 'SLB', 'EOG', 'MPC', 'PSX'],
-                'industrial': ['GE', 'HON', 'MMM', 'CAT', 'DE', 'BA', 'LMT', 'RTX', 'UPS', 'FDX']
-            }
+            # Create a prompt specifically for finding similar stocks
+            similar_stocks_prompt = f"What are 4-5 similar stocks to {ticker} that investors might consider? Include the sector and a brief explanation of why they are similar."
             
-            # Sector names for better display
-            sector_names = {
-                'tech': 'Technology',
-                'finance': 'Financial Services',
-                'healthcare': 'Healthcare',
-                'consumer': 'Consumer Goods',
-                'energy': 'Energy',
-                'industrial': 'Industrial'
-            }
+            # Get response from the AI
+            response = self.ai.get_response(similar_stocks_prompt, context={"request_type": "similar_stocks"}, ticker=ticker)
             
-            # Find which sector contains the ticker
-            ticker = ticker.upper()
-            found_sector = None
-            for sector, stocks in stock_sectors.items():
-                if ticker in stocks:
-                    found_sector = sector
-                    break
-            
-            if not found_sector:
-                # If ticker not found, return tech stocks as default
-                found_sector = 'tech'
+            if response['success']:
+                return {
+                    'success': True,
+                    'recommendation_text': response['response']
+                }
+            else:
+                return response
                 
-            # Get stocks from the same sector, excluding the input ticker
-            similar_stocks = [stock for stock in stock_sectors[found_sector] if stock != ticker]
-            
-            # Randomly select 4 to return
-            if len(similar_stocks) > 4:
-                similar_stocks = random.sample(similar_stocks, 4)
-                
-            return {
-                'success': True,
-                'similar_stocks': similar_stocks,
-                'sector': sector_names.get(found_sector, found_sector.capitalize())
-            }
-            
         except Exception as e:
             logger.error(f"Error finding similar stocks for {ticker}: {str(e)}")
             return {
@@ -350,7 +498,7 @@ Try asking about a specific stock like "Tell me about AAPL" or explain concepts 
     
     def _get_stock_data(self, ticker):
         """
-        Get basic stock data using the yfinance library (completely free, no API key needed)
+        Get basic stock data using yfinance (free)
         """
         try:
             logger.info(f"Fetching stock data from YFinance for {ticker}")
@@ -359,128 +507,37 @@ Try asking about a specific stock like "Tell me about AAPL" or explain concepts 
             stock = yf.Ticker(ticker)
             
             # Get current data (most recent price)
-            try:
-                current_data = stock.history(period="1d")
+            current_data = stock.history(period="1d")
+            
+            if not current_data.empty:
+                # Get most recent price (last row, Close column)
+                current_price = current_data['Close'].iloc[-1]
                 
-                if not current_data.empty:
-                    # Get most recent price (last row, Close column)
-                    current_price = current_data['Close'].iloc[-1]
-                    
-                    # Get previous close for calculating change
-                    previous_data = stock.history(period="2d")
-                    if len(previous_data) > 1:
-                        previous_close = previous_data['Close'].iloc[-2]
-                        change = current_price - previous_close
-                        change_str = f"+{change:.2f}" if change >= 0 else f"{change:.2f}"
-                    else:
-                        change_str = "0.00"
-                    
-                    return {
-                        'success': True,
-                        'ticker': ticker,
-                        'price': str(round(current_price, 2)),
-                        'change': change_str
-                    }
+                # Get previous close for calculating change
+                previous_data = stock.history(period="2d")
+                if len(previous_data) > 1:
+                    previous_close = previous_data['Close'].iloc[-2]
+                    change = current_price - previous_close
+                    change_str = f"+{change:.2f}" if change >= 0 else f"{change:.2f}"
                 else:
-                    logger.warning(f"No data returned from YFinance for {ticker}")
-                    return {
-                        'success': False,
-                        'error': f"Could not get data for {ticker} from YFinance"
-                    }
-            except Exception as e:
-                logger.error(f"Error processing YFinance data for {ticker}: {str(e)}")
-                return {
-                    'success': False,
-                    'error': f"Error processing data for {ticker}: {str(e)}"
-                }
-                
-        except Exception as e:
-            logger.error(f"Error getting stock data from YFinance for {ticker}: {str(e)}")
-            
-            # Try Alpha Vantage as fallback (with limited daily requests)
-            logger.info(f"Trying Alpha Vantage as fallback for {ticker}")
-            return self._get_alpha_vantage_data(ticker)
-    
-    def _get_alpha_vantage_data(self, ticker):
-        """Get stock data from Alpha Vantage as a fallback method"""
-        try:
-            url = f"{self.alpha_vantage_base}?function=GLOBAL_QUOTE&symbol={ticker}&apikey={self.alpha_vantage_key}"
-            logger.info(f"Fetching stock data from Alpha Vantage for {ticker}")
-            
-            response = requests.get(url, timeout=10)
-            data = response.json()
-            
-            if "Global Quote" in data and data["Global Quote"]:
-                quote = data["Global Quote"]
-                price = quote.get("05. price", "N/A")
-                change = quote.get("09. change", "N/A")
+                    change_str = "0.00"
                 
                 return {
                     'success': True,
                     'ticker': ticker,
-                    'price': price,
-                    'change': change
+                    'price': str(round(current_price, 2)),
+                    'change': change_str
                 }
             else:
-                logger.warning(f"No data returned from Alpha Vantage for {ticker}: {data}")
-                # Use simulated data as ultimate fallback
-                return self._get_simulated_data(ticker)
+                logger.warning(f"No data returned from YFinance for {ticker}")
+                return {
+                    'success': False,
+                    'error': f"Could not get data for {ticker}"
+                }
                 
         except Exception as e:
-            logger.error(f"Error getting stock data from Alpha Vantage for {ticker}: {str(e)}")
-            # Use simulated data as ultimate fallback
-            return self._get_simulated_data(ticker)
-            
-    def _get_simulated_data(self, ticker):
-        """Generate simulated data as final fallback method"""
-        logger.warning(f"Using simulated data for {ticker} as fallback")
-        
-        # Use ticker to seed random generator for consistency
-        random.seed(hash(ticker))
-        
-        # Generate random price based on ticker length (just for variety)
-        base_price = 50 + (len(ticker) * 10)
-        random_price = round(random.uniform(base_price * 0.8, base_price * 1.2), 2)
-        
-        # Generate random change
-        random_change = round(random.uniform(-5, 5), 2)
-        change_str = f"+{random_change}" if random_change >= 0 else f"{random_change}"
-        
-        return {
-            'success': True,
-            'ticker': ticker,
-            'price': str(random_price),
-            'change': change_str,
-            'source': 'Simulated data (API connections failed)'
-        }
-    
-    def _get_simple_sentiment(self, ticker):
-        """
-        Get a simple sentiment assessment for a stock
-        
-        This is a placeholder. In a real system, this would analyze recent news and social media.
-        """
-        # Some predefined sentiments for well-known stocks
-        sentiment_map = {
-            'AAPL': ['positive', 'very positive', 'neutral'],
-            'MSFT': ['positive', 'very positive'],
-            'GOOGL': ['positive', 'neutral'],
-            'AMZN': ['positive', 'neutral'],
-            'META': ['neutral', 'positive', 'negative'],
-            'TSLA': ['volatile', 'very positive', 'very negative'],
-            'NVDA': ['very positive', 'positive'],
-            'JPM': ['positive', 'neutral'],
-            'BAC': ['neutral', 'negative', 'positive'],
-            'DIS': ['neutral', 'positive']
-        }
-        
-        ticker = ticker.upper()
-        
-        # If we have predefined sentiment for this stock
-        if ticker in sentiment_map:
-            return random.choice(sentiment_map[ticker])
-            
-        # For demo purposes, return a weighted random sentiment for other stocks
-        sentiments = ['very positive', 'positive', 'neutral', 'negative', 'very negative']
-        weights = [0.1, 0.3, 0.4, 0.15, 0.05]  # Weighted towards neutral/positive
-        return random.choices(sentiments, weights=weights, k=1)[0] 
+            logger.error(f"Error getting stock data for {ticker}: {str(e)}")
+            return {
+                'success': False,
+                'error': f"Error retrieving data for {ticker}: {str(e)}"
+            } 
