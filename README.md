@@ -11,6 +11,7 @@ This application combines quantitative financial metrics with qualitative sentim
 - **Search History**: Persistent record of recently viewed stocks
 - **Financial Data**: Comprehensive company metrics via AlphaVantage API
 - **Sentiment Analysis**: Social media sentiment indicators via StockGeist API
+- **Chatbot**: AI Assistant that assists the user in Stocks and Finance Questions
 
 ## Setup Process
 
@@ -25,7 +26,7 @@ This application combines quantitative financial metrics with qualitative sentim
 
    ```bash
    git clone <repository-url>
-   cd semesterproject
+   cd CIS4004-project
    ```
 
 2. **Create a virtual environment**
@@ -52,12 +53,6 @@ This application combines quantitative financial metrics with qualitative sentim
    pip install -r requirements.txt
    ```
 
-   > **Note**: If `requirements.txt` is not available, install the following packages:
-   >
-   > ```bash
-   > pip install flask requests
-   > ```
-
 5. **Configure API keys**
 
    The application comes pre-configured with test API keys. For production use, replace these in `app.py`:
@@ -65,6 +60,7 @@ This application combines quantitative financial metrics with qualitative sentim
    ```python
    STOCKGEIST_API_KEY = 'your_stockgeist_api_key'
    ALPHAVANTAGE_API_KEY = 'your_alphavantage_api_key'
+   OPENROUTER_API_KEY = 'your_openrouter_api_key'
    ```
 
 6. **Run the application**
