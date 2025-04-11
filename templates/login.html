@@ -1,34 +1,47 @@
 <!-- templates/login.html -->
 {% extends 'base.html' %} {% block content %}
-<div class="card auth-container">
-  <h2>Login to Your Account</h2>
-  <form method="post">
-    <div class="form-group">
-      <label for="username" class="form-label">Username</label>
-      <input
-        type="text"
-        id="username"
-        name="username"
-        class="form-control"
-        required
-      />
+<div class="auth-container">
+  <form method="post" class="form">
+    <h2 style="text-align: center">Login</h2>
+
+    <div class="flex-column">
+      <label for="username">Username</label>
+      <div class="inputForm">
+        <i class="fas fa-user"></i>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          class="input"
+          placeholder="Enter your username"
+          required
+        />
+      </div>
     </div>
-    <div class="form-group">
-      <label for="password" class="form-label">Password</label>
-      <input
-        type="password"
-        id="password"
-        name="password"
-        class="form-control"
-        required
-      />
+
+    <div class="flex-column">
+      <label for="password">Password</label>
+      <div class="inputForm">
+        <i class="fas fa-lock"></i>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="input"
+          placeholder="Enter your password"
+          required
+        />
+      </div>
     </div>
-    <button type="submit" class="btn btn-primary" style="width: 100%">
+
+    <button type="submit" class="button-submit">
       <i class="fas fa-sign-in-alt"></i> Login
     </button>
+
+    <p>
+      Don't have an account?
+      <a href="{{ url_for('register') }}" class="span">Register here</a>
+    </p>
   </form>
-  <p>
-    Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
-  </p>
 </div>
 {% endblock %}

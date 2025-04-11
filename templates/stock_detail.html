@@ -119,12 +119,15 @@
         <div class="chart-container">
           <div class="chart-bar">
             <div id="prediction-bar" class="prediction-bar"></div>
-            <div id="confidence-range" class="confidence-range"></div>
+            <div
+              id="confidence-range"
+              class="confidence-range"
+              title="Expected price range (±3%)"
+            ></div>
           </div>
         </div>
         <div class="chart-labels">
-          <div id="confidence-low" class="confidence-label"></div>
-          <div id="confidence-high" class="confidence-label"></div>
+          <span>Price Range (±3%)</span>
         </div>
       </div>
 
@@ -173,7 +176,7 @@
 
 <!-- Sentiment Analysis Section -->
 <div class="data-section">
-  <h3><i class="fas fa-comments"></i> Market Sentiment Analysis</h3>
+  <h3><i class="fas fa-chart-pie"></i> Market Sentiment Analysis</h3>
 
   <div class="sentiment-container">
     <div class="sentiment-data">
@@ -247,18 +250,25 @@
           {% endif %}
         </div>
       </div>
-    </div>
 
-    <div class="messages-section">
-      <h4><i class="fas fa-comments"></i> Messages Analyzed</h4>
-      <div class="message-list">
-        {% for message in sentiment.messages %}
-        <div class="message-item">{{ message }}</div>
-        {% endfor %}
+      <div class="data-card">
+        <h4><i class="fas fa-comments"></i> Messages Analyzed</h4>
+        <div class="message-list">
+          {% if sentiment.messages and sentiment.messages|length > 0 %} {% for
+          message in sentiment.messages %}
+          <div class="message-item">
+            <div class="message-content">{{ message }}</div>
+          </div>
+          {% endfor %} {% else %}
+          <div class="message-item empty-message">
+            <p>No messages available for analysis.</p>
+          </div>
+          {% endif %}
+        </div>
+        {% if sentiment.source %}
+        <div class="data-source">Source: {{ sentiment.source }}</div>
+        {% endif %}
       </div>
-      {% if sentiment.source %}
-      <div class="data-source">Source: {{ sentiment.source }}</div>
-      {% endif %}
     </div>
   </div>
 </div>
@@ -336,32 +346,42 @@
       "$" + data.current_price.toFixed(2);
     document.getElementById("prediction-price").textContent =
       "$" + data.prediction.toFixed(2);
-    document.getElementById("confidence-low").textContent =
-      "$" + data.confidence_interval.low.toFixed(2);
-    document.getElementById("confidence-high").textContent =
-      "$" + data.confidence_interval.high.toFixed(2);
 
-    // Calculate the position and width for the prediction bar
+    // Calculate the position for the prediction bar
     const currentPrice = data.current_price;
-    const lowConf = data.confidence_interval.low;
-    const highConf = data.confidence_interval.high;
     const predictionPrice = data.prediction;
 
-    // Calculate position percentages
-    const range = highConf - lowConf;
-    const barWidth = ((highConf - lowConf) / highConf) * 100;
-    const barLeft = ((lowConf - lowConf * 0.98) / highConf) * 100;
+    // Set a simple range around the current price (±3%)
+    const lowPrice = currentPrice * 0.97;
+    const highPrice = currentPrice * 1.03;
+    const range = highPrice - lowPrice;
 
-    // Set position and style for confidence interval
+    // Calculate position percentages
+    const barWidth = 90; // Fixed width percentage
+    const barLeft = 5; // Fixed left position percentage
+
+    // Set position and style for range
     const confidenceRange = document.getElementById("confidence-range");
     confidenceRange.style.width = barWidth + "%";
     confidenceRange.style.left = barLeft + "%";
+    confidenceRange.title = `Expected price range: $${lowPrice.toFixed(
+      2
+    )} to $${highPrice.toFixed(2)}`;
 
     // Calculate prediction indicator position
-    const predictionPosition =
-      ((predictionPrice - lowConf) / range) * barWidth + barLeft;
+    let predictionPosition =
+      ((predictionPrice - lowPrice) / range) * barWidth + barLeft;
+
+    // Constrain prediction position to stay within the container bounds
+    predictionPosition = Math.max(barLeft, predictionPosition); // Don't go too far left
+    predictionPosition = Math.min(barLeft + barWidth, predictionPosition); // Don't go too far right
+
     const predictionBar = document.getElementById("prediction-bar");
     predictionBar.style.left = predictionPosition + "%";
+    predictionBar.title = `Predicted price: $${predictionPrice.toFixed(2)}`;
+
+    // Reset classes first
+    predictionBar.classList.remove("positive", "negative");
 
     // Set color based on direction
     if (predictionPrice > currentPrice) {

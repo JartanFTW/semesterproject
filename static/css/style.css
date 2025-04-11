@@ -597,6 +597,7 @@ nav {
 .auth-container {
   max-width: 400px;
   margin: 0 auto;
+  padding-top: 80px; /* Add padding to move the form lower on the page */
 }
 
 .auth-container h2 {
@@ -732,7 +733,12 @@ nav {
   box-shadow: var(--shadow-md);
   overflow: hidden;
   border: 1px solid var(--border-color);
-  transition: background-color var(--speed-normal) ease;
+  transition: background-color var(--speed-normal) ease,
+    transform var(--speed-fast) ease, box-shadow var(--speed-fast) ease;
+}
+
+.company-overview:hover {
+  box-shadow: var(--shadow-lg);
 }
 
 .company-header {
@@ -774,14 +780,14 @@ nav {
 }
 
 .company-metrics {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
 }
 
 .metrics-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
 }
 
 .metrics-row:last-child {
@@ -789,44 +795,48 @@ nav {
 }
 
 .metric-card {
-  padding: var(--spacing-md);
+  padding: var(--spacing-lg);
   background-color: var(--bg-secondary);
   border-radius: var(--radius-md);
   border-left: 3px solid var(--primary);
   transition: transform var(--speed-fast) ease,
     box-shadow var(--speed-fast) ease, background-color var(--speed-normal) ease;
+  width: 100%;
 }
 
 .metric-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
+  background-color: var(--bg-card);
+  border-left: 3px solid var(--secondary);
 }
 
 .metric-title {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   color: var(--text-muted);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   margin-bottom: var(--spacing-xs);
 }
 
 .metric-value {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
+  margin-top: var(--spacing-xs);
 }
 
 /* Sentiment Analysis Section */
 .sentiment-container {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr;
   gap: var(--spacing-lg);
   margin-top: var(--spacing-lg);
 }
 
 .sentiment-data {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-lg);
 }
 
@@ -984,7 +994,7 @@ nav {
 }
 
 .message-list {
-  max-height: 300px;
+  max-height: 150px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-400) transparent;
@@ -1004,19 +1014,46 @@ nav {
 }
 
 .message-item {
-  padding: var(--spacing-md);
+  padding: var(--spacing-sm);
   background-color: var(--bg-secondary);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-sm);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   border-left: 3px solid var(--primary);
   transition: transform var(--speed-fast) ease,
     box-shadow var(--speed-fast) ease;
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  overflow: hidden;
 }
 
 .message-item:hover {
   transform: translateX(4px);
   box-shadow: var(--shadow-sm);
+}
+
+.message-content {
+  width: 100%;
+  line-height: 1.4;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.message-sentiment {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty-message {
+  color: var(--text-muted);
+  font-style: italic;
+  border-left-color: var(--gray-400);
+}
+
+.message-item p {
+  margin: 0;
 }
 
 .data-source {
@@ -1151,7 +1188,8 @@ nav {
   }
 
   .metrics-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
   }
 
   .back-to-top {
@@ -1167,14 +1205,12 @@ nav {
     grid-template-columns: 1fr;
   }
 
+  .metrics-row {
+    grid-template-columns: 1fr;
+  }
+
   h1 {
     font-size: 1.875rem;
-  }
-  h2 {
-    font-size: 1.5rem;
-  }
-  h3 {
-    font-size: 1.25rem;
   }
 
   .nav-brand {
@@ -1517,30 +1553,37 @@ nav {
 }
 
 .prediction-chart {
-  margin: var(--spacing-md) 0;
+  margin: 25px 0 15px;
+  position: relative;
 }
 
 .chart-container {
   position: relative;
   height: 30px;
-  margin: var(--spacing-md) 0;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
 }
 
 .chart-bar {
-  position: relative;
   width: 100%;
-  height: 8px;
-  background-color: var(--border-color);
-  border-radius: 4px;
+  height: 10px;
+  background-color: var(--bg-secondary);
+  border-radius: 5px;
+  position: relative;
 }
 
 .prediction-bar {
   position: absolute;
   width: 4px;
   height: 20px;
-  top: -6px;
+  top: 0px;
   background-color: var(--primary-color);
   border-radius: 2px;
+  z-index: 5;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
 }
 
 .prediction-bar.positive {
@@ -1554,8 +1597,11 @@ nav {
 .confidence-range {
   position: absolute;
   height: 8px;
-  background-color: rgba(var(--primary-rgb), 0.3);
+  background-color: rgba(var(--primary-rgb), 0.2);
   border-radius: 4px;
+  border: 1px solid rgba(var(--primary-rgb), 0.5);
+  box-shadow: inset 0 0 3px rgba(var(--primary-rgb), 0.3);
+  cursor: help;
 }
 
 .chart-labels {
@@ -1765,6 +1811,49 @@ nav {
   justify-content: center;
   gap: var(--spacing-md);
   margin-top: var(--spacing-lg);
+}
+
+.hero-cta .btn-primary {
+  background-color: var(--primary);
+  color: var(--white);
+  border: 2px solid var(--white);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Add specific styling for login button */
+.hero-cta a[href*="login"] {
+  background-color: #f59e0b; /* Using secondary/warning color */
+  border-color: #f59e0b;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-image: none; /* Override any gradient */
+}
+
+.hero-cta a[href*="login"]:hover {
+  background-color: #d97706; /* Darker shade for hover */
+  border-color: #d97706;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* Add specific styling for register button */
+.hero-cta a[href*="register"] {
+  background-color: #10b981; /* Using success color */
+  border-color: #10b981;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-image: none; /* Override any gradient */
+}
+
+.hero-cta a[href*="register"]:hover {
+  background-color: #059669; /* Darker shade for hover */
+  border-color: #059669;
+  color: #ffffff;
+  transform: translateY(-2px);
 }
 
 .popular-section {
@@ -1979,5 +2068,112 @@ nav {
 .card.card-gradient:hover,
 .card.recent-searches:hover {
   transform: none;
-  box-shadow: var(--shadow-md);
+  box-shadow: none !important;
+}
+
+/* Form styling for login and register pages */
+.auth-container .form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: #ffffff;
+  padding: 30px;
+  width: 100%;
+  max-width: 450px;
+  border-radius: 20px;
+  font-family: var(--font-sans);
+  margin: 0 auto;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  transition: none;
+}
+
+.auth-container .form:hover {
+  transform: none !important;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1) !important;
+}
+
+.auth-container .form button {
+  align-self: center;
+  width: 100%;
+}
+
+.auth-container .flex-column {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auth-container .flex-column > label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.auth-container .inputForm {
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  transition: 0.2s ease-in-out;
+  background-color: var(--bg-primary);
+}
+
+.auth-container .input {
+  margin-left: 10px;
+  border-radius: 10px;
+  border: none;
+  width: 85%;
+  height: 100%;
+  background-color: transparent;
+  color: var(--text-primary);
+}
+
+.auth-container .input:focus {
+  outline: none;
+}
+
+.auth-container .inputForm:focus-within {
+  border: 1.5px solid var(--primary);
+}
+
+.auth-container .button-submit {
+  margin: 20px 0 10px 0;
+  background-color: var(--primary);
+  border: none;
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  height: 50px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.auth-container .button-submit:hover {
+  background-color: var(--primary-dark);
+}
+
+.auth-container p {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .auth-container .form {
+  background-color: #111827; /* Darker background for better contrast in dark mode */
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .auth-container .form:hover {
+  transform: none !important;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="dark"] .auth-container .inputForm {
+  border-color: var(--border-color);
+  background-color: var(--input-bg);
 }

@@ -4,8 +4,11 @@ import requests
 import json
 import logging
 import os
+import time
+import yfinance as yf
 from ai_helpers import StockAI
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 # Set up logging
 logging.basicConfig(
@@ -21,16 +24,19 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_replace_in_production')
 # API configuration
 STOCKGEIST_API_KEY = 'EB577JAy0ombl1t2AvXjIow1GRrAJTIQ'
 STOCKGEIST_BASE_URL = 'https://api.stockgeist.ai'
-ALPHAVANTAGE_API_KEY = 'Q8WYAIKELRRKGL6O'
+ALPHAVANTAGE_API_KEY = 'AOML1FY1BFGG5JYC'
 ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query'
+OPENROUTER_API_KEY = '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'
+POLYGON_API_KEY = 'BpKCtdhu6oQsG2VqITeyipcCslWpnmTW'
 
 # Initialize StockAI helper
 stock_ai = StockAI(
-    alpha_vantage_key=os.environ.get('ALPHA_VANTAGE_KEY', 'DEMO'),
-    stockgeist_key=os.environ.get('STOCKGEIST_KEY', 'DEMO')
+    alpha_vantage_key=os.environ.get('ALPHA_VANTAGE_KEY', ALPHAVANTAGE_API_KEY),
+    stockgeist_key=os.environ.get('STOCKGEIST_KEY', STOCKGEIST_API_KEY),
+    openrouter_key=os.environ.get('OPENROUTER_API_KEY', OPENROUTER_API_KEY),
+    polygon_key=os.environ.get('POLYGON_API_KEY', POLYGON_API_KEY)
 )
 
-# Database functions remain the same...
 def init_db():
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
@@ -62,48 +68,76 @@ def register_user(username, password):
     conn.close()
     return success
 
-# Initialize database on startup
+
 init_db()
 
-# Function to get company overview from AlphaVantage
+# Function to get company overview using YFinance
 def get_company_overview(ticker):
     """
-    Fetch company overview data from AlphaVantage API
+    Fetch company overview data using YFinance library
     """
-    params = {
-        'function': 'OVERVIEW',
-        'symbol': ticker,
-        'apikey': ALPHAVANTAGE_API_KEY
-    }
-    
     try:
-        logger.info(f"Calling AlphaVantage API for ticker {ticker}")
-        response = requests.get(ALPHAVANTAGE_BASE_URL, params=params)
-        logger.info(f"Response status code: {response.status_code}")
+        logger.info(f"Getting company overview from YFinance for {ticker}")
+        # Get stock info using yfinance
+        stock = yf.Ticker(ticker)
+        info = stock.info
         
-        if response.status_code == 200:
-            data = response.json()
+        if info and len(info) > 0:
+            # Map YFinance data to the same format we were using with AlphaVantage
+            company_data = {
+                'Symbol': info.get('symbol', ticker),
+                'Name': info.get('shortName', 'N/A'),
+                'Description': info.get('longBusinessSummary', 'No description available'),
+                'Exchange': info.get('exchange', 'N/A'),
+                'Industry': info.get('industry', 'N/A'),
+                'Sector': info.get('sector', 'N/A'),
+                'MarketCapitalization': info.get('marketCap', 'N/A'),
+                'PERatio': info.get('trailingPE', 'N/A'),
+                'PEGRatio': info.get('pegRatio', 'N/A'),
+                'BookValue': info.get('bookValue', 'N/A'),
+                'DividendYield': info.get('dividendYield', 'N/A'),
+                'EPS': info.get('trailingEps', 'N/A'),
+                'RevenuePerShareTTM': info.get('revenuePerShare', 'N/A'),
+                'ProfitMargin': info.get('profitMargins', 'N/A'),
+                'OperatingMarginTTM': info.get('operatingMargins', 'N/A'),
+                'ReturnOnAssetsTTM': info.get('returnOnAssets', 'N/A'),
+                'ReturnOnEquityTTM': info.get('returnOnEquity', 'N/A'),
+                'RevenueTTM': info.get('totalRevenue', 'N/A'),
+                'GrossProfitTTM': info.get('grossProfits', 'N/A'),
+                'Beta': info.get('beta', 'N/A'),
+                '52WeekHigh': info.get('fiftyTwoWeekHigh', 'N/A'),
+                '52WeekLow': info.get('fiftyTwoWeekLow', 'N/A'),
+                '50DayMovingAverage': info.get('fiftyDayAverage', 'N/A'),
+                '200DayMovingAverage': info.get('twoHundredDayAverage', 'N/A'),
+                'AnalystTargetPrice': info.get('targetMeanPrice', 'N/A')
+            }
             
-            # Check if we got valid data (AlphaVantage returns an empty dict or error message for invalid tickers)
-            if 'Symbol' in data and data['Symbol']:
-                return {
-                    'success': True,
-                    'company_data': data
-                }
-            else:
-                logger.error(f"No valid data returned for ticker {ticker}: {data}")
-                return {
-                    'success': False,
-                    'error': f"No data found for ticker {ticker}"
-                }
+            # Convert any numerical values to proper format
+            for key, value in company_data.items():
+                if value == 'N/A':
+                    continue
+                if isinstance(value, float):
+                    # Format as percentage if appropriate
+                    if 'Margin' in key or 'Yield' in key or 'Return' in key:
+                        company_data[key] = f"{value * 100:.2f}%"
+                    # Format large numbers
+                    elif 'Market' in key or 'Revenue' in key or 'Profit' in key:
+                        company_data[key] = f"{value:,.2f}"
+                    else:
+                        company_data[key] = f"{value:.2f}"
+            
+            return {
+                'success': True,
+                'company_data': company_data
+            }
         else:
-            logger.error(f"API request failed with status {response.status_code}")
+            logger.error(f"No data returned from YFinance for {ticker}")
             return {
                 'success': False,
-                'error': f"API request failed: {response.status_code}"
+                'error': f"No data found for ticker {ticker}"
             }
     except Exception as e:
-        logger.error(f"Exception in API request: {str(e)}")
+        logger.error(f"Exception in YFinance API request: {str(e)}")
         return {
             'success': False,
             'error': str(e)
@@ -259,18 +293,21 @@ def index():
 def register():
     if request.method == 'POST':
         username = request.form.get('username')
-        email = request.form.get('email')
         password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
         
-        if password != confirm_password:
-            flash('Passwords do not match', 'danger')
+        # Check if username already exists
+        existing_user = get_user(username)
+        if existing_user:
+            flash('Username already exists. Please choose another one.', 'danger')
             return render_template('register.html')
         
-        # In a real app, you would store user info in a database
-        # For demo purposes, just redirect to login
-        flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
+        # Register the user in the database
+        if register_user(username, password):
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Registration failed. Please try again.', 'danger')
+            return render_template('register.html')
     
     return render_template('register.html')
 
@@ -333,8 +370,29 @@ def chatbot_api():
             'error': 'No message provided'
         }), 400
     
-    response = stock_ai.generate_chatbot_response(data['message'])
-    return jsonify(response)
+    # Set a timeout for the response generation
+    try:
+        # Use a thread pool to run with timeout
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            # Start the API call in a separate thread
+            future = executor.submit(stock_ai.generate_chatbot_response, data['message'])
+            try:
+                # Wait for up to 15 seconds for a response
+                response = future.result(timeout=15)
+                return jsonify(response)
+            except TimeoutError:
+                # If it takes too long, return a timeout error
+                logger.warning("Chatbot response generation timed out")
+                return jsonify({
+                    'success': True,
+                    'response': "I'm taking too long to think about this. Could you ask a simpler question or try again later?"
+                })
+    except Exception as e:
+        logger.error(f"Error in chatbot API: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': "An error occurred while processing your request."
+        }), 500
 
 @app.route('/api/predict/<ticker>')
 def predict_stock_api(ticker):

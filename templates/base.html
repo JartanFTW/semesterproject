@@ -241,28 +241,51 @@
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({ message: message }),
+              // Set a timeout for the fetch request
+              signal: AbortSignal.timeout(20000), // 20 second timeout
             })
-              .then((response) => response.json())
+              .then((response) => {
+                if (!response.ok) {
+                  throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+              })
               .then((data) => {
                 // Remove typing indicator
-                chatMessages.removeChild(typingIndicator);
+                if (typingIndicator.parentNode === chatMessages) {
+                  chatMessages.removeChild(typingIndicator);
+                }
 
                 // Add bot response
                 if (data.success) {
                   addBotMessage(data.response);
                 } else {
                   addBotMessage(
-                    "I'm having trouble understanding that. Could you try asking something else?"
+                    data.error ||
+                      "I'm having trouble understanding that. Could you try asking something else?"
                   );
                 }
               })
               .catch((error) => {
                 console.error("Error:", error);
-                // Remove typing indicator
-                chatMessages.removeChild(typingIndicator);
-                addBotMessage(
-                  "Sorry, I'm experiencing some technical difficulties. Please try again later."
-                );
+                // Remove typing indicator if it still exists
+                if (typingIndicator.parentNode === chatMessages) {
+                  chatMessages.removeChild(typingIndicator);
+                }
+
+                // Check if it's a timeout error
+                if (
+                  error.name === "TimeoutError" ||
+                  error.name === "AbortError"
+                ) {
+                  addBotMessage(
+                    "I'm taking too long to respond. Let me try a simpler answer. Please ask again or try a different question."
+                  );
+                } else {
+                  addBotMessage(
+                    "Sorry, I'm experiencing some technical difficulties. Please try again later."
+                  );
+                }
               });
           }
         }
