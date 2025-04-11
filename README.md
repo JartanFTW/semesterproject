@@ -11,6 +11,7 @@ This application combines quantitative financial metrics with qualitative sentim
 - **Search History**: Persistent record of recently viewed stocks
 - **Financial Data**: Comprehensive company metrics via AlphaVantage API
 - **Sentiment Analysis**: Social media sentiment indicators via StockGeist API
+- **Chatbot**: AI Assistant that assists the user in Stocks and Finance Questions
 
 ## Setup Process
 
