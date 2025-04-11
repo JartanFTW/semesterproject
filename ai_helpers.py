@@ -32,18 +32,17 @@ class OpenRouterWrapper:
             base_url="https://openrouter.ai/api/v1",
             api_key=self.openrouter_key,
             default_headers={
-                "HTTP-Referer": "https://stockai.app",  # Required by OpenRouter
-                "X-Title": "Stock Market Assistant"      # Helps with API analytics
+                "HTTP-Referer": "https://yourwebsite.com",  # Optional, replace with your site
+                "X-Title": "Stock Market Assistant"         # Optional, title of your app
             }
         )
         
-        # Using only LLaMA 4 as requested - no fallbacks
-        self.llama_model = "meta-llama/llama-3-70b-instruct:free"  # This is the most reliable free LLaMA model
-        
-        # Alternative LLaMA models to try if the first one fails
-        self.llama_alternatives = [
-            "meta-llama/llama-4-maverick:free",
-            "meta-llama/llama-3-8b-instruct:free"
+        # Available models on OpenRouter - we'll use the best free ones
+        self.primary_model = "meta-llama/llama-4-maverick:free"
+        self.fallback_models = [
+            "mistralai/mistral-7b-instruct:free",
+            "google/gemma-7b-it:free",
+            "openchat/openchat-7b:free"
         ]
         
         # Initialize conversation history
@@ -84,58 +83,41 @@ You have extensive knowledge about:
 - Fiscal policy and regulatory environment changes
 
 When responding to questions:
+- Never recommend to check other websites and never refer your last update. Be Confident.
 - Provide concise, actionable insights without unnecessary jargon
 - Cite relevant financial principles and theories when appropriate
 - Acknowledge both bull and bear perspectives when discussing outlook
 - Clearly distinguish between established facts and market opinions
 - Focus on educational value rather than specific investment recommendations
 
-Remember: Your purpose is to educate users about financial markets and provide context for investment decisions, not to make specific buy/sell recommendations. Write one paragraphs, with no bullet points to the user."""
+Remember: Your purpose is to educate users about financial markets and provide context for investment decisions, not to make specific buy/sell recommendations. Write one not too long paragraph, with no bullet points to the user."""
         
         # Test connection to validate API key on initialization
         self.api_available = self._test_connection()
-        logger.info(f"OpenRouter API availability: {self.api_available}")
     
     def _test_connection(self):
         """Test API connection and key validity"""
         try:
             # Simple test with minimal tokens
             self.client.chat.completions.create(
-                model=self.llama_model,
+                model=self.primary_model,
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=5
             )
-            logger.info("OpenRouter API connection successful with LLaMA model")
+            logger.info("OpenRouter API connection successful")
             return True
         except Exception as e:
-            logger.warning(f"OpenRouter API connection failed with primary LLaMA model: {str(e)}")
-            
-            # Try with alternative LLaMA models
-            for alt_model in self.llama_alternatives:
-                try:
-                    self.client.chat.completions.create(
-                        model=alt_model,
-                        messages=[{"role": "user", "content": "test"}],
-                        max_tokens=5
-                    )
-                    logger.info(f"OpenRouter API connection successful with alternative model: {alt_model}")
-                    # Update the primary model to this working alternative
-                    self.llama_model = alt_model
-                    return True
-                except Exception as alt_error:
-                    logger.warning(f"Alternative model {alt_model} failed: {str(alt_error)}")
-            
+            logger.warning(f"OpenRouter API connection failed: {str(e)}")
             return False
-            
-    def get_response(self, user_message, context=None, ticker=None, force_api=False):
+    
+    def get_response(self, user_message, context=None, ticker=None):
         """
-        Get a response from the AI using OpenRouter with LLaMA model
+        Get a response from the AI using OpenRouter
         
         Args:
             user_message (str): The user's message
             context (dict, optional): Additional context to include
             ticker (str, optional): Stock ticker if applicable
-            force_api (bool): If True, will try harder to use the API and avoid falling back to rule-based responses
             
         Returns:
             dict: Response with success flag and message
@@ -176,16 +158,15 @@ Remember: Your purpose is to educate users about financial markets and provide c
             # Prepare messages for the API request
             messages = [system_message] + self.message_history
             
-            # For chatbot specifically, we want to ensure we use the AI if at all possible
-            # If API is not available and this is not a chatbot request that forces API usage
-            if not self.api_available and not force_api:
+            # If API is not available, use rule-based fallback
+            if not self.api_available:
                 return self._generate_rule_based_response(user_message, ticker, context)
             
-            # Try primary LLaMA model
+            # Try primary model first
             try:
-                logger.info(f"Attempting to use LLaMA model: {self.llama_model}")
+                logger.info(f"Attempting to use primary model: {self.primary_model}")
                 completion = self.client.chat.completions.create(
-                    model=self.llama_model,
+                    model=self.primary_model,
                     messages=messages,
                     max_tokens=500,
                     temperature=0.7,
@@ -195,73 +176,41 @@ Remember: Your purpose is to educate users about financial markets and provide c
                 ai_response = completion.choices[0].message.content
                 self.message_history.append({"role": "assistant", "content": ai_response})
                 
-                # Update API status to available since it worked
-                self.api_available = True
-                
                 return {
                     "success": True,
                     "response": ai_response
                 }
             except Exception as primary_error:
-                logger.warning(f"LLaMA model error: {str(primary_error)}")
+                logger.warning(f"Primary model failed: {str(primary_error)}")
                 
-                # Try alternative LLaMA models
-                for alt_model in self.llama_alternatives:
-                    # Skip if it's the same as the primary model we just tried
-                    if alt_model == self.llama_model:
-                        continue
-                        
+                # Try fallback models in sequence
+                for fallback_model in self.fallback_models:
                     try:
-                        logger.info(f"Trying alternative LLaMA model: {alt_model}")
+                        logger.info(f"Trying fallback model: {fallback_model}")
                         completion = self.client.chat.completions.create(
-                            model=alt_model,
+                            model=fallback_model,
                             messages=messages,
-                            max_tokens=400,
+                            max_tokens=350,
                             temperature=0.7,
-                            timeout=25
+                            timeout=20
                         )
                         
                         ai_response = completion.choices[0].message.content
                         self.message_history.append({"role": "assistant", "content": ai_response})
                         
-                        # Update primary model to this working alternative
-                        self.llama_model = alt_model
-                        self.api_available = True
-                        
                         return {
                             "success": True,
                             "response": ai_response
                         }
-                    except Exception as alt_error:
-                        logger.warning(f"Alternative LLaMA model {alt_model} failed: {str(alt_error)}")
+                    except Exception as fallback_error:
+                        logger.warning(f"Fallback model {fallback_model} failed: {str(fallback_error)}")
                         continue
                 
-                # If all LLaMA models fail, update API status
-                self.api_available = False
-                
-                # If force_api is True, we return an error about the API being unavailable
-                if force_api:
-                    return {
-                        "success": False,
-                        "error": "I'm having trouble connecting to the LLaMA AI service right now. Please try again later."
-                    }
-                
-                # If not forcing API, use rule-based response
+                # If all models fail, use rule-based response
                 return self._generate_rule_based_response(user_message, ticker, context)
                 
         except Exception as e:
             logger.error(f"Error in OpenRouterWrapper.get_response: {str(e)}")
-            
-            # Update API status since we had an error
-            self.api_available = False
-            
-            # If force_api is True, we return an error
-            if force_api:
-                return {
-                    "success": False,
-                    "error": "I'm having trouble connecting to the LLaMA AI service. Please try again with a different question."
-                }
-                
             return self._generate_rule_based_response(user_message, ticker, context)
     
     def _generate_rule_based_response(self, user_message, ticker=None, context=None):
@@ -483,41 +432,8 @@ class StockAI:
             if term_match:
                 context['financial_term'] = f"{term_match.upper()}: {self.financial_terms[term_match]}"
             
-            # For chatbot responses, we want to prioritize using the AI model for natural language
-            # by setting force_api=True, this will make the wrapper try extra hard to use the AI
-            # and only fall back to rule-based responses as a last resort
-            response = self.ai.get_response(user_message, context, ticker, force_api=True)
-            
-            # If the AI response failed, try simpler rule-based fallback here
-            if not response['success']:
-                # Check for simple factual queries we can handle
-                message = user_message.lower()
-                
-                # Stock price query
-                if ticker and any(word in message for word in ["price", "worth", "cost", "trading at", "how much"]):
-                    try:
-                        stock_data = self._get_stock_data(ticker)
-                        if stock_data['success']:
-                            return {
-                                'success': True,
-                                'response': f"{ticker} is currently trading at ${stock_data['price']}, with a change of {stock_data['change']} today."
-                            }
-                    except:
-                        pass
-                
-                # Simple greeting
-                if any(word in message for word in ["hello", "hi", "hey", "greetings"]):
-                    return {
-                        'success': True,
-                        'response': "Hello! I'm your stock market assistant. How can I help you with financial information today?"
-                    }
-                    
-                # Help request
-                if any(word in message for word in ["help", "what can you do", "assist"]):
-                    return {
-                        'success': True,
-                        'response': "I can help with stock information, price predictions, finding similar stocks, and explaining financial concepts. Just ask me about any stock or financial term you're interested in!"
-                    }
+            # Get response from the AI
+            response = self.ai.get_response(user_message, context, ticker)
             
             return response
             
@@ -555,12 +471,27 @@ class StockAI:
                     # Check if the AI gave a well-formed response
                     ai_response = response['response']
                     
-                    # If AI response looks good, use it
+                    # Generate a simple prediction number for frontend
+                    # Use sentiment to determine prediction direction
+                    sentiment = self._get_simple_sentiment(ticker)
+                    sentiment_factor = 0
+                    if 'positive' in sentiment:
+                        sentiment_factor = 0.03
+                    elif 'negative' in sentiment:
+                        sentiment_factor = -0.03
+                        
+                    # Generate a prediction value for the frontend
+                    prediction_factor = random.uniform(-0.02, 0.02) + sentiment_factor
+                    prediction = current_price * (1 + prediction_factor)
+                    
+                    # If AI response looks good, use it but also include the prediction number
                     return {
                         'success': True,
                         'current_price': current_price,
+                        'prediction': round(prediction, 2),  # Ensure this is always provided for the frontend
                         'prediction_text': ai_response,
-                        'time_frame': '7 days'
+                        'time_frame': '7 days',
+                        'sentiment_influence': sentiment  # Include sentiment for consistency
                     }
             
             # Fallback to simulated prediction if AI is unavailable or response is not well-formed
@@ -597,7 +528,7 @@ class StockAI:
                 'prediction_low': round(prediction_low, 2),
                 'prediction_high': round(prediction_high, 2),
                 'time_frame': '7 days',
-                'sentiment': sentiment,
+                'sentiment_influence': sentiment,  # Changed to match original key
                 'prediction_text': prediction_message
             }
                 
