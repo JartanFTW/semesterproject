@@ -32,17 +32,18 @@ class OpenRouterWrapper:
             base_url="https://openrouter.ai/api/v1",
             api_key=self.openrouter_key,
             default_headers={
-                "HTTP-Referer": "https://stockai.app",  # Replace with your actual site if you have one
-                "X-Title": "Stock Market Assistant"
+                "HTTP-Referer": "https://stockai.app",  # Required by OpenRouter
+                "X-Title": "Stock Market Assistant"      # Helps with API analytics
             }
         )
         
-        # Available models on OpenRouter - we'll use the best free ones
-        self.primary_model = "meta-llama/llama-4-maverick:free"
-        self.fallback_models = [
-            "mistralai/mistral-7b-instruct:free",
-            "google/gemma-7b-it:free",
-            "openchat/openchat-7b:free"
+        # Using only LLaMA 4 as requested - no fallbacks
+        self.llama_model = "meta-llama/llama-3-70b-instruct:free"  # This is the most reliable free LLaMA model
+        
+        # Alternative LLaMA models to try if the first one fails
+        self.llama_alternatives = [
+            "meta-llama/llama-4-maverick:free",
+            "meta-llama/llama-3-8b-instruct:free"
         ]
         
         # Initialize conversation history
@@ -100,19 +101,35 @@ Remember: Your purpose is to educate users about financial markets and provide c
         try:
             # Simple test with minimal tokens
             self.client.chat.completions.create(
-                model=self.primary_model,
+                model=self.llama_model,
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=5
             )
-            logger.info("OpenRouter API connection successful")
+            logger.info("OpenRouter API connection successful with LLaMA model")
             return True
         except Exception as e:
-            logger.warning(f"OpenRouter API connection failed: {str(e)}")
+            logger.warning(f"OpenRouter API connection failed with primary LLaMA model: {str(e)}")
+            
+            # Try with alternative LLaMA models
+            for alt_model in self.llama_alternatives:
+                try:
+                    self.client.chat.completions.create(
+                        model=alt_model,
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=5
+                    )
+                    logger.info(f"OpenRouter API connection successful with alternative model: {alt_model}")
+                    # Update the primary model to this working alternative
+                    self.llama_model = alt_model
+                    return True
+                except Exception as alt_error:
+                    logger.warning(f"Alternative model {alt_model} failed: {str(alt_error)}")
+            
             return False
-    
+            
     def get_response(self, user_message, context=None, ticker=None, force_api=False):
         """
-        Get a response from the AI using OpenRouter
+        Get a response from the AI using OpenRouter with LLaMA model
         
         Args:
             user_message (str): The user's message
@@ -164,11 +181,11 @@ Remember: Your purpose is to educate users about financial markets and provide c
             if not self.api_available and not force_api:
                 return self._generate_rule_based_response(user_message, ticker, context)
             
-            # Try primary model first
+            # Try primary LLaMA model
             try:
-                logger.info(f"Attempting to use primary model: {self.primary_model}")
+                logger.info(f"Attempting to use LLaMA model: {self.llama_model}")
                 completion = self.client.chat.completions.create(
-                    model=self.primary_model,
+                    model=self.llama_model,
                     messages=messages,
                     max_tokens=500,
                     temperature=0.7,
@@ -186,42 +203,47 @@ Remember: Your purpose is to educate users about financial markets and provide c
                     "response": ai_response
                 }
             except Exception as primary_error:
-                logger.warning(f"Primary model failed: {str(primary_error)}")
+                logger.warning(f"LLaMA model error: {str(primary_error)}")
                 
-                # Try fallback models in sequence
-                for fallback_model in self.fallback_models:
+                # Try alternative LLaMA models
+                for alt_model in self.llama_alternatives:
+                    # Skip if it's the same as the primary model we just tried
+                    if alt_model == self.llama_model:
+                        continue
+                        
                     try:
-                        logger.info(f"Trying fallback model: {fallback_model}")
+                        logger.info(f"Trying alternative LLaMA model: {alt_model}")
                         completion = self.client.chat.completions.create(
-                            model=fallback_model,
+                            model=alt_model,
                             messages=messages,
-                            max_tokens=350,
+                            max_tokens=400,
                             temperature=0.7,
-                            timeout=20
+                            timeout=25
                         )
                         
                         ai_response = completion.choices[0].message.content
                         self.message_history.append({"role": "assistant", "content": ai_response})
                         
-                        # Update API status to available since a fallback worked
+                        # Update primary model to this working alternative
+                        self.llama_model = alt_model
                         self.api_available = True
                         
                         return {
                             "success": True,
                             "response": ai_response
                         }
-                    except Exception as fallback_error:
-                        logger.warning(f"Fallback model {fallback_model} failed: {str(fallback_error)}")
+                    except Exception as alt_error:
+                        logger.warning(f"Alternative LLaMA model {alt_model} failed: {str(alt_error)}")
                         continue
                 
-                # If all models fail, update API status
+                # If all LLaMA models fail, update API status
                 self.api_available = False
                 
                 # If force_api is True, we return an error about the API being unavailable
                 if force_api:
                     return {
                         "success": False,
-                        "error": "I'm having trouble connecting to my AI services right now. Please try again later."
+                        "error": "I'm having trouble connecting to the LLaMA AI service right now. Please try again later."
                     }
                 
                 # If not forcing API, use rule-based response
@@ -237,7 +259,7 @@ Remember: Your purpose is to educate users about financial markets and provide c
             if force_api:
                 return {
                     "success": False,
-                    "error": "I'm having trouble processing your request. Please try again with a different question."
+                    "error": "I'm having trouble connecting to the LLaMA AI service. Please try again with a different question."
                 }
                 
             return self._generate_rule_based_response(user_message, ticker, context)
