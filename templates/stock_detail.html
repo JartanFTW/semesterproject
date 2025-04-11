@@ -118,16 +118,21 @@
       <div class="prediction-chart">
         <div class="chart-container">
           <div class="chart-bar">
+            <div
+              id="current-price-indicator"
+              class="current-price-indicator"
+              title="Current Price"
+            ></div>
             <div id="prediction-bar" class="prediction-bar"></div>
             <div
               id="confidence-range"
               class="confidence-range"
-              title="Expected price range (±3%)"
+              title="Price Range"
             ></div>
           </div>
         </div>
         <div class="chart-labels">
-          <span>Price Range (±3%)</span>
+          <span id="direction-indicator"></span>
         </div>
       </div>
 
@@ -351,20 +356,37 @@
     const currentPrice = data.current_price;
     const predictionPrice = data.prediction;
 
-    // Set a simple range around the current price (±3%)
-    const lowPrice = currentPrice * 0.97;
-    const highPrice = currentPrice * 1.03;
+    // Calculate percent change
+    const percentChange =
+      ((predictionPrice - currentPrice) / currentPrice) * 100;
+    const formattedChange = percentChange.toFixed(2);
+    const changeDirection = percentChange >= 0 ? "up" : "down";
+
+    // Set price range for visualization (±5%)
+    const lowPrice = currentPrice * 0.95;
+    const highPrice = currentPrice * 1.05;
     const range = highPrice - lowPrice;
 
     // Calculate position percentages
     const barWidth = 90; // Fixed width percentage
     const barLeft = 5; // Fixed left position percentage
 
+    // Calculate middle position (current price)
+    const middlePosition =
+      ((currentPrice - lowPrice) / range) * barWidth + barLeft;
+
+    // Set position for current price indicator (neutral line)
+    const currentPriceIndicator = document.getElementById(
+      "current-price-indicator"
+    );
+    currentPriceIndicator.style.left = middlePosition + "%";
+    currentPriceIndicator.title = `Current price: $${currentPrice.toFixed(2)}`;
+
     // Set position and style for range
     const confidenceRange = document.getElementById("confidence-range");
     confidenceRange.style.width = barWidth + "%";
     confidenceRange.style.left = barLeft + "%";
-    confidenceRange.title = `Expected price range: $${lowPrice.toFixed(
+    confidenceRange.title = `Price visualization range: $${lowPrice.toFixed(
       2
     )} to $${highPrice.toFixed(2)}`;
 
@@ -378,7 +400,9 @@
 
     const predictionBar = document.getElementById("prediction-bar");
     predictionBar.style.left = predictionPosition + "%";
-    predictionBar.title = `Predicted price: $${predictionPrice.toFixed(2)}`;
+    predictionBar.title = `Predicted price: $${predictionPrice.toFixed(
+      2
+    )} (${changeDirection} ${Math.abs(formattedChange)}%)`;
 
     // Reset classes first
     predictionBar.classList.remove("positive", "negative");
@@ -386,8 +410,16 @@
     // Set color based on direction
     if (predictionPrice > currentPrice) {
       predictionBar.classList.add("positive");
+      document.getElementById(
+        "direction-indicator"
+      ).innerHTML = `<span class="prediction-direction positive">Prediction: <strong>${formattedChange}%</strong> higher than current price</span>`;
     } else {
       predictionBar.classList.add("negative");
+      document.getElementById(
+        "direction-indicator"
+      ).innerHTML = `<span class="prediction-direction negative">Prediction: <strong>${Math.abs(
+        formattedChange
+      )}%</strong> lower than current price</span>`;
     }
   }
 
