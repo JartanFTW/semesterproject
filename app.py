@@ -26,7 +26,7 @@ STOCKGEIST_API_KEY = 'EB577JAy0ombl1t2AvXjIow1GRrAJTIQ'
 STOCKGEIST_BASE_URL = 'https://api.stockgeist.ai'
 ALPHAVANTAGE_API_KEY = 'AOML1FY1BFGG5JYC'
 ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query'
-OPENROUTER_API_KEY = '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'
+OPENROUTER_API_KEY = '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'
 POLYGON_API_KEY = 'BpKCtdhu6oQsG2VqITeyipcCslWpnmTW'
 
 # Initialize StockAI helper
