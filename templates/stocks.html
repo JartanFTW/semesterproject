@@ -1,59 +1,121 @@
 <!-- templates/stocks.html -->
-{% extends 'base.html' %}
+{% extends 'base.html' %} {% block content %}
+<div class="card card-gradient search-container">
+  <h2><i class="fas fa-search"></i> Find Stock Information</h2>
+  <p>
+    Enter a stock ticker symbol to view financial data and sentiment analysis.
+  </p>
 
-{% block content %}
-<div class="stocks-container">
-    <h2>Stock Ticker Search</h2>
-    <div class="search-form">
-        <input type="text" id="ticker-input" placeholder="Enter stock ticker symbol (e.g., AAPL, MSFT)" required>
-        <button id="search-btn" class="btn">Search</button>
+  <div class="search-form">
+    <input
+      type="text"
+      id="ticker-input"
+      class="form-control"
+      placeholder="Enter stock ticker symbol (e.g., AAPL, MSFT)"
+      required
+    />
+    <button id="search-btn" class="btn btn-primary">
+      <i class="fas fa-search"></i> Search
+    </button>
+  </div>
+
+  <div class="popular-tickers">
+    <p>Popular tickers:</p>
+    <div class="popular-list">
+      <a href="/stocks/AAPL" class="badge badge-primary">AAPL</a>
+      <a href="/stocks/MSFT" class="badge badge-primary">MSFT</a>
+      <a href="/stocks/GOOGL" class="badge badge-primary">GOOGL</a>
+      <a href="/stocks/AMZN" class="badge badge-primary">AMZN</a>
+      <a href="/stocks/TSLA" class="badge badge-primary">TSLA</a>
+      <a href="/stocks/META" class="badge badge-primary">META</a>
     </div>
-    
-    <div class="recent-searches">
-        <h3>Recent Searches</h3>
-        <div id="recent-list" class="recent-list">
-            <!-- JavaScript will populate this -->
-        </div>
-    </div>
-    
-    <script>
-        document.getElementById('search-btn').addEventListener('click', function() {
-            const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
-            if (ticker) {
-                // Store in recent searches
-                let recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
-                if (!recent.includes(ticker)) {
-                    recent.unshift(ticker);
-                    if (recent.length > 5) recent.pop(); // Keep only 5 most recent
-                    localStorage.setItem('recentStocks', JSON.stringify(recent));
-                }
-                // Navigate to stock detail page
-                window.location.href = '/stocks/' + ticker;
-            }
-        });
-        
-        // Load recent searches
-        function loadRecentSearches() {
-            const recentList = document.getElementById('recent-list');
-            const recent = JSON.parse(localStorage.getItem('recentStocks') || '[]');
-            
-            recentList.innerHTML = '';
-            if (recent.length === 0) {
-                recentList.innerHTML = '<p>No recent searches</p>';
-                return;
-            }
-            
-            recent.forEach(ticker => {
-                const link = document.createElement('a');
-                link.href = '/stocks/' + ticker;
-                link.textContent = ticker;
-                link.className = 'recent-item';
-                recentList.appendChild(link);
-            });
-        }
-        
-        // Load recent searches on page load
-        document.addEventListener('DOMContentLoaded', loadRecentSearches);
-    </script>
+  </div>
 </div>
+
+<div class="card recent-searches">
+  <h3><i class="fas fa-history"></i> Recent Searches</h3>
+  <div id="recent-list" class="recent-list">
+    <!-- JavaScript will populate this -->
+    <div class="loading-indicator">Loading recent searches...</div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const searchBtn = document.getElementById("search-btn");
+    const tickerInput = document.getElementById("ticker-input");
+
+    // Focus the input field on page load
+    tickerInput.focus();
+
+    // Search on enter key
+    tickerInput.addEventListener("keyup", function (event) {
+      if (event.key === "Enter") {
+        searchStock();
+      }
+    });
+
+    // Search on button click
+    searchBtn.addEventListener("click", searchStock);
+
+    function searchStock() {
+      const ticker = tickerInput.value.trim().toUpperCase();
+      if (ticker) {
+        // Visual feedback
+        searchBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin"></i> Searching...';
+        searchBtn.disabled = true;
+
+        // Store in recent searches
+        let recent = JSON.parse(localStorage.getItem("recentStocks") || "[]");
+        if (!recent.includes(ticker)) {
+          recent.unshift(ticker);
+          if (recent.length > 5) recent.pop(); // Keep only 5 most recent
+          localStorage.setItem("recentStocks", JSON.stringify(recent));
+        }
+
+        // Navigate to stock detail page
+        setTimeout(() => {
+          window.location.href = "/stocks/" + ticker;
+        }, 300); // Short delay for visual feedback
+      }
+    }
+
+    // Load recent searches
+    function loadRecentSearches() {
+      const recentList = document.getElementById("recent-list");
+      const recent = JSON.parse(localStorage.getItem("recentStocks") || "[]");
+
+      recentList.innerHTML = "";
+      if (recent.length === 0) {
+        recentList.innerHTML =
+          "<p>No recent searches. Search for a stock to get started.</p>";
+        return;
+      }
+
+      recent.forEach((ticker, index) => {
+        const link = document.createElement("a");
+        link.href = "/stocks/" + ticker;
+        link.className = "recent-item";
+        link.innerHTML = `<i class="fas fa-chart-line"></i> ${ticker}`;
+
+        // Add subtle animation
+        link.style.opacity = "0";
+        link.style.transform = "translateY(10px)";
+
+        recentList.appendChild(link);
+
+        // Trigger animation after a small delay based on index
+        setTimeout(() => {
+          link.style.transition = "all 0.3s ease";
+          link.style.opacity = "1";
+          link.style.transform = "translateY(0)";
+        }, 50 * index);
+      });
+    }
+
+    // Load recent searches on page load
+    loadRecentSearches();
+  });
+</script>
 {% endblock %}

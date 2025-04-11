@@ -1,2 +1,10 @@
-flask
+Flask
+yfinance
+openai
 requests
+python-dotenv
+Werkzeug
+Jinja2
+pandas
+numpy
+gunicorn
